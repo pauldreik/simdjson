@@ -295,6 +295,7 @@ static never_inline bool parse_float(const uint8_t *const buf, ParsedJson &pj,
       if (neg_exp) {
         // We either have zero or a subnormal.
         // We expect this to be uncommon so we go through a slow path.
+	// runtime error: 6.66667e+308 is outside the range of representable values of type 'double'
         i = subnormal_power10(i, -exp_number);
       } else {
 // We know for sure that we have a number that is too large,
