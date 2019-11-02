@@ -1,6 +1,6 @@
 name: Run fuzzers on stored corpus and test it with valgrind
 
-on: [push]
+on: [push,pull_request]
 
 jobs:
   build:    
@@ -33,12 +33,12 @@ jobs:
       run: |
         for fuzzer in $allfuzzers; do
           mkdir -p out/$fuzzer # in case this is a new fuzzer, or corpus.tar is broken
-          build-ossfuzz-fast8/fuzz/fuzz_$fuzzer         out/$fuzzer -max_total_time=20
+          build-ossfuzz-fast8/fuzz/fuzz_$fuzzer         out/$fuzzer -max_total_time=30
         done
     - name: Run the other fuzzer variants for $fuzzer, with sanitizers etc
       run: |
         for fuzzer in $allfuzzers; do      
-          build-ossfuzz-withavx/fuzz/fuzz_$fuzzer       out/$fuzzer -max_total_time=10
+          build-ossfuzz-withavx/fuzz/fuzz_$fuzzer       out/$fuzzer -max_total_time=20
           build-ossfuzz-noavx/fuzz/fuzz_$fuzzer         out/$fuzzer -max_total_time=10
           build-ossfuzz-noavx8/fuzz/fuzz_$fuzzer        out/$fuzzer -max_total_time=10
           echo disable msan runs, it fails inside the fuzzing engine and note the fuzzed code!
