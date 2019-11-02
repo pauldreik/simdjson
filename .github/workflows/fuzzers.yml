@@ -31,11 +31,23 @@ jobs:
         build-ossfuzz-withavx/fuzz/fuzz_$fuzzer       out/$fuzzer -max_total_time=10
         build-ossfuzz-noavx/fuzz/fuzz_$fuzzer         out/$fuzzer -max_total_time=10
         build-ossfuzz-noavx8/fuzz/fuzz_$fuzzer        out/$fuzzer -max_total_time=10
-        build-ossfuzz-msan-noavx8/fuzz/fuzz_$fuzzer   out/$fuzzer -max_total_time=10 -reload=0
-        build-ossfuzz-msan-withavx8/fuzz/fuzz_$fuzzer out/$fuzzer -max_total_time=10 -reload=0
+        echo disable msan runs, it fails in the fuzzing engine
+        echo build-ossfuzz-msan-noavx8/fuzz/fuzz_$fuzzer   out/$fuzzer -max_total_time=10 -reload=0
+        echo build-ossfuzz-msan-withavx8/fuzz/fuzz_$fuzzer out/$fuzzer -max_total_time=10 -reload=0
         echo now have $(ls out/$fuzzer |wc -l) files in corpus
+        tar cf corpus.tar out/
+    - name: Save corpus for later
+      uses: actions/upload-artifact@v1
+      with:
+        name: corpus
+        path: corpus.tar
     - name: run corpus through valgrind
       run: |
-        find out/$fuzzer -type f |xargs valgrind build-plain-noavx/fuzz/fuzz_$fuzzer 
-        find out/$fuzzer -type f |xargs valgrind build-plain-normal/fuzz/fuzz_$fuzzer 
-
+        find out/$fuzzer -type f |xargs valgrind build-plain-noavx/fuzz/fuzz_$fuzzer  2>&1|tee valgrind-noavx.txt
+        find out/$fuzzer -type f |xargs valgrind build-plain-normal/fuzz/fuzz_$fuzzer 2>&1|tee valgrind-normal.txt
+        tar cf valgrind.tar valgrind-*txt
+    - name: Save valgrind output
+      uses: actions/upload-artifact@v1
+      with:
+        name: valgrindresults
+        path: valgrind.tar
