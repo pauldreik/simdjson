@@ -11,7 +11,7 @@ jobs:
     - name: Download the corpus form the last run
       run: |
         wget --quiet https://dl.bintray.com/pauldreik/simdjson-fuzz-corpus/corpus/corpus.tar
-        tar xf corpus.tar
+        tar xvf corpus.tar
         rm corpus.tar
     - name: Install packages necessary for building
       run: |
