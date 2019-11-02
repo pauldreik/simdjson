@@ -8,6 +8,10 @@ jobs:
     env:
       fuzzer: parser
     steps:
+    - name: test uploading to bintray
+      run: |
+        touch hej_bintray.txt
+        curl -T hej_bintray.txt -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/$fuzzer/1/hej_bintray.txt
     - name: install packages
       run: |
         sudo apt install ninja-build valgrind
