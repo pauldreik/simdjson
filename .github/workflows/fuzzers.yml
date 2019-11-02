@@ -10,13 +10,12 @@ jobs:
       run: |
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
-        sudo ./llvm.sh 7
+        sudo ./llvm.sh 8
+        sudo ./llvm.sh 9
     - uses: actions/checkout@v1
       with:
         ref: paul/fuzz_experiment      
-    - name: Run a one-line script
-      run: echo Hello, world!
-    - name: Run a multi-line script
+    - name: build
       run: ./build_like_ossfuzz.sh
   buildcorpus:
     runs-on: ubuntu-latest
