@@ -12,7 +12,7 @@ jobs:
       run: |
         date > hej_bintray.txt
         curl -T hej_bintray.txt -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/corpus.tar";override=1"
-        curl -X POST            -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/publish=1
+        curl -X POST            -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/publish
     - name: install packages
       run: |
         sudo apt install ninja-build valgrind
