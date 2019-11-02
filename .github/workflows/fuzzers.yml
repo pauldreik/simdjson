@@ -16,7 +16,12 @@ jobs:
         sudo ./llvm.sh 8
     - uses: actions/checkout@v1
       with:
-        ref: paul/fuzz_experiment      
+        ref: paul/fuzz_experiment    
+    - name: check git version
+      run: |
+        echo are we on master?
+        git rev-parse --verify HEAD
+        git rev-parse --verify origin/master
     - name: Download the corpus from the last run
       run: |
         wget --quiet https://dl.bintray.com/pauldreik/simdjson-fuzz-corpus/corpus/corpus.tar
