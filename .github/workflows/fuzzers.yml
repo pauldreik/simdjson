@@ -31,6 +31,9 @@ jobs:
       run: ./build_like_ossfuzz.sh      
     - name: Run the fastest fuzzer $fuzzer to explore fast
       run: |
+        ls
+        ls out
+        ls out/$fuzzer
         mkdir -p out/$fuzzer # in case this is a new fuzzer, or corpus.tar is broken
         build-ossfuzz-fast8/fuzz/fuzz_$fuzzer         out/$fuzzer -max_total_time=20
     - name: Run the other fuzzer variants for $fuzzer, with sanitizers etc
