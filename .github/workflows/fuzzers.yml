@@ -11,7 +11,6 @@ jobs:
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
         sudo ./llvm.sh 8
-        sudo ./llvm.sh 9
     - uses: actions/checkout@v1
       with:
         ref: paul/fuzz_experiment      
