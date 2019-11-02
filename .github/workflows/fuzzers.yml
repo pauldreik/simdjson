@@ -8,11 +8,6 @@ jobs:
     env:
       fuzzer: parser
     steps:
-    - name: Download the corpus form the last run
-      run: |
-        wget --quiet https://dl.bintray.com/pauldreik/simdjson-fuzz-corpus/corpus/corpus.tar
-        tar xvf corpus.tar
-        rm corpus.tar
     - name: Install packages necessary for building
       run: |
         sudo apt-get install --quiet ninja-build valgrind
@@ -22,6 +17,11 @@ jobs:
     - uses: actions/checkout@v1
       with:
         ref: paul/fuzz_experiment      
+    - name: Download the corpus form the last run
+      run: |
+        wget --quiet https://dl.bintray.com/pauldreik/simdjson-fuzz-corpus/corpus/corpus.tar
+        tar xvf corpus.tar
+        rm corpus.tar
     - name: List clang versions
       run: |
         ls /usr/bin/clang*
