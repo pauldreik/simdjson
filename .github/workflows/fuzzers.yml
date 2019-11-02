@@ -8,12 +8,18 @@ jobs:
     steps:
     - name: install packages
       run: |
+        sudo apt install ninja-build
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
         sudo ./llvm.sh 8
     - uses: actions/checkout@v1
       with:
         ref: paul/fuzz_experiment      
+    - name: list clang versions
+      run: |
+        ls /usr/bin/clang*
+        which clang++
+        clang++ --version
     - name: build
       run: ./build_like_ossfuzz.sh
   buildcorpus:
