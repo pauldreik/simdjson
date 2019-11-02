@@ -4,7 +4,9 @@ on: [push]
 
 jobs:
   build:
-    runs-on: ubuntu-latest    
+    runs-on: ubuntu-latest
+    env:
+      fuzzer: parser
     steps:
     - name: install packages
       run: |
@@ -20,17 +22,10 @@ jobs:
         ls /usr/bin/clang*
         which clang++
         clang++ --version
-    - name: build
-      run: ./build_like_ossfuzz.sh
-  buildcorpus:
-    runs-on: ubuntu-latest
-    needs: build
-    timeout-minutes: 10
-    env:
-      fuzzer: parser
-    steps:
-      - name: run the fuzzer $fuzzer
-        run: |
-          mkdir -p out/$fuzzer
-          build-ossfuzz-fast8/fuzz/fuzz_$fuzzer out/$fuzzer -max_total_time=20
+    - name: build all variants
+      run: ./build_like_ossfuzz.sh      
+    - name: run the fuzzer $fuzzer
+      run: |
+        mkdir -p out/$fuzzer
+        build-ossfuzz-fast8/fuzz/fuzz_$fuzzer out/$fuzzer -max_total_time=20
         
