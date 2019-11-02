@@ -1,4 +1,4 @@
-name: build and run corpus through fuzzers
+name: Run fuzzers on stored corpus and test it with valgrind
 
 on: [push]
 
@@ -8,12 +8,12 @@ jobs:
     env:
       fuzzer: parser
     steps:
-    - name: download the corpus form the last run
+    - name: Download the corpus form the last run
       run: |
         wget --quiet https://dl.bintray.com/pauldreik/simdjson-fuzz-corpus/corpus/corpus.tar
         tar xf corpus.tar
         rm corpus.tar
-    - name: install packages
+    - name: Install packages necessary for building
       run: |
         sudo apt-get install --quiet ninja-build valgrind
         wget https://apt.llvm.org/llvm.sh
@@ -22,42 +22,51 @@ jobs:
     - uses: actions/checkout@v1
       with:
         ref: paul/fuzz_experiment      
-    - name: list clang versions
+    - name: List clang versions
       run: |
         ls /usr/bin/clang*
         which clang++
         clang++ --version
-    - name: build all variants
+    - name: Build all the variants
       run: ./build_like_ossfuzz.sh      
-    - name: run the fuzzer $fuzzer and build a corpus from thin air
+    - name: Run the fastest fuzzer $fuzzer to explore fast
       run: |
-        mkdir -p out/$fuzzer
+        mkdir -p out/$fuzzer # in case this is a new fuzzer, or corpus.tar is broken
         build-ossfuzz-fast8/fuzz/fuzz_$fuzzer         out/$fuzzer -max_total_time=20
+    - name: Run the other fuzzer variants for $fuzzer, with sanitizers etc
+      run: |      
         build-ossfuzz-withavx/fuzz/fuzz_$fuzzer       out/$fuzzer -max_total_time=10
         build-ossfuzz-noavx/fuzz/fuzz_$fuzzer         out/$fuzzer -max_total_time=10
         build-ossfuzz-noavx8/fuzz/fuzz_$fuzzer        out/$fuzzer -max_total_time=10
         echo disable msan runs, it fails inside the fuzzing engine and note the fuzzed code!
         echo build-ossfuzz-msan-noavx8/fuzz/fuzz_$fuzzer   out/$fuzzer -max_total_time=10 -reload=0
         echo build-ossfuzz-msan-withavx8/fuzz/fuzz_$fuzzer out/$fuzzer -max_total_time=10 -reload=0
-        echo now have $(ls out/$fuzzer |wc -l) files in corpus
-        tar cf corpus.tar out/
+        echo now have $(ls out/$fuzzer |wc -l) files in corpus        
+    - name: Minimize the corpus with the fast fuzzer
+      run: |
+        mkdir -p out/cmin/$fuzzer
+        build-ossfuzz-fast8/fuzz/fuzz_$fuzzer -merge=1  out/cmin/$fuzzer out/$fuzzer
+        rm -rf out/$fuzzer
+        mv out/cmin/$fuzzer out/$fuzzer
+    - name: Package the corpus into an artifact
+      run: tar cf corpus.tar out/$fuzzer
     - name: Save the corpus as a github artifact
       uses: actions/upload-artifact@v1
       with:
         name: corpus
         path: corpus.tar
-    - name: run the corpus through valgrind (normal build)
+    - name: Run the corpus through valgrind (normal build)
       run:  find out/$fuzzer -type f |sort|xargs valgrind build-plain-noavx/fuzz/fuzz_$fuzzer  2>&1|tee valgrind-noavx.txt
-    - name: run the corpus through valgrind (noavx build)
+    - name: Run the corpus through valgrind (noavx build)
       run: find out/$fuzzer -type f |sort|xargs valgrind build-plain-normal/fuzz/fuzz_$fuzzer 2>&1|tee valgrind-normal.txt        
-    - name: Compress valgrind output
+    - name: Compress the valgrind output
       run: tar cf valgrind.tar valgrind-*.txt
     - name: Save valgrind output as a github artifact
       uses: actions/upload-artifact@v1
       with:
         name: valgrindresults
         path: valgrind.tar
-    - name: Upload corpus and results to bintray
+    - name: Upload the corpus and results to bintray
       run: |
         echo uploading each artifact twice, otherwise it will not be published
         curl -T corpus.tar -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/corpus.tar";publish=1;override=1"
