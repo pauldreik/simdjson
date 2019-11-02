@@ -10,7 +10,7 @@ jobs:
     steps:
     - name: install packages
       run: |
-        sudo apt install ninja-build
+        sudo apt install ninja-build valgrind
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
         sudo ./llvm.sh 8
@@ -24,8 +24,18 @@ jobs:
         clang++ --version
     - name: build all variants
       run: ./build_like_ossfuzz.sh      
-    - name: run the fuzzer $fuzzer
+    - name: run the fuzzer $fuzzer and build a corpus from thin air
       run: |
         mkdir -p out/$fuzzer
-        build-ossfuzz-fast8/fuzz/fuzz_$fuzzer out/$fuzzer -max_total_time=20
-        
+        build-ossfuzz-fast8/fuzz/fuzz_$fuzzer         out/$fuzzer -max_total_time=20
+        build-ossfuzz-withavx/fuzz/fuzz_$fuzzer       out/$fuzzer -max_total_time=10
+        build-ossfuzz-noavx/fuzz/fuzz_$fuzzer         out/$fuzzer -max_total_time=10
+        build-ossfuzz-noavx8/fuzz/fuzz_$fuzzer        out/$fuzzer -max_total_time=10
+        build-ossfuzz-msan-noavx8/fuzz/fuzz_$fuzzer   out/$fuzzer -max_total_time=10 -reload=0
+        build-ossfuzz-msan-withavx8/fuzz/fuzz_$fuzzer out/$fuzzer -max_total_time=10 -reload=0
+        echo now have $(ls out/$fuzzer |wc -l) files in corpus
+    - name: run corpus through valgrind
+      run: |
+        find out/$fuzzer -type f |xargs valgrind build-plain-noavx/fuzz/fuzz_$fuzzer 
+        find out/$fuzzer -type f |xargs valgrind build-plain-normal/fuzz/fuzz_$fuzzer 
+
