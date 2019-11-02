@@ -8,6 +8,11 @@ jobs:
     env:
       fuzzer: parser
     steps:
+    - name: download the corpus form the last run
+      run: |
+        wget --quiet https://dl.bintray.com/pauldreik/simdjson-fuzz-corpus/corpus/corpus.tar
+        tar xf corpus.tar
+        rm corpus.tar
     - name: install packages
       run: |
         sudo apt install ninja-build valgrind
@@ -31,7 +36,7 @@ jobs:
         build-ossfuzz-withavx/fuzz/fuzz_$fuzzer       out/$fuzzer -max_total_time=10
         build-ossfuzz-noavx/fuzz/fuzz_$fuzzer         out/$fuzzer -max_total_time=10
         build-ossfuzz-noavx8/fuzz/fuzz_$fuzzer        out/$fuzzer -max_total_time=10
-        echo disable msan runs, it fails in the fuzzing engine
+        echo disable msan runs, it fails inside the fuzzing engine and note the fuzzed code!
         echo build-ossfuzz-msan-noavx8/fuzz/fuzz_$fuzzer   out/$fuzzer -max_total_time=10 -reload=0
         echo build-ossfuzz-msan-withavx8/fuzz/fuzz_$fuzzer out/$fuzzer -max_total_time=10 -reload=0
         echo now have $(ls out/$fuzzer |wc -l) files in corpus
@@ -43,8 +48,8 @@ jobs:
         path: corpus.tar
     - name: run corpus through valgrind
       run: |
-        find out/$fuzzer -type f |xargs valgrind build-plain-noavx/fuzz/fuzz_$fuzzer  2>&1|tee valgrind-noavx.txt
-        find out/$fuzzer -type f |xargs valgrind build-plain-normal/fuzz/fuzz_$fuzzer 2>&1|tee valgrind-normal.txt
+        find out/$fuzzer -type f |sort|xargs valgrind build-plain-noavx/fuzz/fuzz_$fuzzer  2>&1|tee valgrind-noavx.txt
+        find out/$fuzzer -type f |sort|xargs valgrind build-plain-normal/fuzz/fuzz_$fuzzer 2>&1|tee valgrind-normal.txt
         tar cf valgrind.tar valgrind-*txt
     - name: Save valgrind output
       uses: actions/upload-artifact@v1
@@ -53,6 +58,7 @@ jobs:
         path: valgrind.tar
     - name: test uploading to bintray
       run: |
+        echo uploading each artifact twice, otherwise it will not be published
         curl -T corpus.tar -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/corpus.tar";publish=1;override=1"
         curl -T corpus.tar -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/corpus.tar";publish=1;override=1"
         curl -T valgrind.tar -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/valgrind.tar";publish=1;override=1"
