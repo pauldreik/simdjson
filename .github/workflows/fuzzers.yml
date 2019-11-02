@@ -8,11 +8,6 @@ jobs:
     env:
       fuzzer: parser
     steps:
-    - name: test uploading to bintray
-      run: |
-        date > hej_bintray.txt
-        curl -T hej_bintray.txt -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/corpus.tar";publish=1;override=1"
-        curl -T hej_bintray.txt -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/corpus.tar";publish=1;override=1"
     - name: install packages
       run: |
         sudo apt install ninja-build valgrind
@@ -56,3 +51,9 @@ jobs:
       with:
         name: valgrindresults
         path: valgrind.tar
+    - name: test uploading to bintray
+      run: |
+        curl -T corpus.tar -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/corpus.tar";publish=1;override=1"
+        curl -T corpus.tar -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/corpus.tar";publish=1;override=1"
+        curl -T valgrind.tar -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/valgrind.tar";publish=1;override=1"
+        curl -T valgrind.tar -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/valgrind.tar";publish=1;override=1"
