@@ -17,10 +17,10 @@ jobs:
     - uses: actions/checkout@v1
       with:
         ref: paul/fuzz_experiment      
-    - name: Download the corpus form the last run
+    - name: Download the corpus from the last run
       run: |
         wget --quiet https://dl.bintray.com/pauldreik/simdjson-fuzz-corpus/corpus/corpus.tar
-        tar xvf corpus.tar
+        tar xf corpus.tar
         rm corpus.tar
     - name: List clang versions
       run: |
