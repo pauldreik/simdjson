@@ -49,8 +49,6 @@ jobs:
         path: corpus.tar
     - name: run the corpus through valgrind (normal build)
       run:  find out/$fuzzer -type f |sort|xargs valgrind build-plain-noavx/fuzz/fuzz_$fuzzer  2>&1|tee valgrind-noavx.txt
-        find out/$fuzzer -type f |sort|xargs valgrind build-plain-normal/fuzz/fuzz_$fuzzer 2>&1|tee valgrind-normal.txt
-        tar cf valgrind.tar valgrind-*txt
     - name: run the corpus through valgrind (noavx build)
       run: find out/$fuzzer -type f |sort|xargs valgrind build-plain-normal/fuzz/fuzz_$fuzzer 2>&1|tee valgrind-normal.txt        
     - name: Compress valgrind output
