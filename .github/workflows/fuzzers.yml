@@ -7,9 +7,10 @@ jobs:
     runs-on: ubuntu-latest    
     steps:
     - name: install packages
-      run: wget https://apt.llvm.org/llvm.sh
-           chmod +x llvm.sh
-           sudo ./llvm.sh 7
+      run: |
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 7
     - uses: actions/checkout@v1
       with:
         ref: paul/fuzz_experiment      
