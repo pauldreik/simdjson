@@ -8,7 +8,6 @@ jobs:
     env:
       fuzzer: parser
     steps:
-    - timeout-minutes: 20
     - name: download the corpus form the last run
       run: |
         wget --quiet https://dl.bintray.com/pauldreik/simdjson-fuzz-corpus/corpus/corpus.tar
