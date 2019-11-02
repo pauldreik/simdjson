@@ -3,11 +3,12 @@ name: build and run corpus through fuzzers
 on: [push]
 
 jobs:
-  build:
+  build:    
     runs-on: ubuntu-latest
     env:
       fuzzer: parser
     steps:
+    - timeout-minutes: 20
     - name: download the corpus form the last run
       run: |
         wget --quiet https://dl.bintray.com/pauldreik/simdjson-fuzz-corpus/corpus/corpus.tar
@@ -15,7 +16,7 @@ jobs:
         rm corpus.tar
     - name: install packages
       run: |
-        sudo apt install ninja-build valgrind
+        sudo apt-get install --quiet ninja-build valgrind
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
         sudo ./llvm.sh 8
@@ -41,22 +42,25 @@ jobs:
         echo build-ossfuzz-msan-withavx8/fuzz/fuzz_$fuzzer out/$fuzzer -max_total_time=10 -reload=0
         echo now have $(ls out/$fuzzer |wc -l) files in corpus
         tar cf corpus.tar out/
-    - name: Save corpus for later
+    - name: Save the corpus as a github artifact
       uses: actions/upload-artifact@v1
       with:
         name: corpus
         path: corpus.tar
-    - name: run corpus through valgrind
-      run: |
-        find out/$fuzzer -type f |sort|xargs valgrind build-plain-noavx/fuzz/fuzz_$fuzzer  2>&1|tee valgrind-noavx.txt
+    - name: run the corpus through valgrind (normal build)
+      run:  find out/$fuzzer -type f |sort|xargs valgrind build-plain-noavx/fuzz/fuzz_$fuzzer  2>&1|tee valgrind-noavx.txt
         find out/$fuzzer -type f |sort|xargs valgrind build-plain-normal/fuzz/fuzz_$fuzzer 2>&1|tee valgrind-normal.txt
         tar cf valgrind.tar valgrind-*txt
-    - name: Save valgrind output
+    - name: run the corpus through valgrind (noavx build)
+      run: find out/$fuzzer -type f |sort|xargs valgrind build-plain-normal/fuzz/fuzz_$fuzzer 2>&1|tee valgrind-normal.txt        
+    - name: Compress valgrind output
+      run: tar cf valgrind.tar valgrind-*.txt
+    - name: Save valgrind output as a github artifact
       uses: actions/upload-artifact@v1
       with:
         name: valgrindresults
         path: valgrind.tar
-    - name: test uploading to bintray
+    - name: Upload corpus and results to bintray
       run: |
         echo uploading each artifact twice, otherwise it will not be published
         curl -T corpus.tar -upauldreik:${{ secrets.bintrayApiKey }} https://api.bintray.com/content/pauldreik/simdjson-fuzz-corpus/corpus/0/corpus/corpus.tar";publish=1;override=1"
