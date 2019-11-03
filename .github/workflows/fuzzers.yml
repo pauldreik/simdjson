@@ -1,6 +1,10 @@
 name: Run fuzzers on stored corpus and test it with valgrind
 
-on: [push,pull_request]
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: 23 */8 * * *
 
 jobs:
   build:    
