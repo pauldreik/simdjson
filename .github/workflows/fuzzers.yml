@@ -1,5 +1,8 @@
 name: Run fuzzers on stored corpus and test it with valgrind
 
+# In the case of a pull request happening at the same time as a pull
+# request, there is no risk that the corpus is broken, since it
+# is only uploaded for the master
 on:
   push:
   pull_request:
@@ -20,6 +23,7 @@ jobs:
         sudo ./llvm.sh 8
     - uses: actions/checkout@v1
       with:
+        # remove this once integrated
         ref: paul/fuzz_experiment    
     - name: Download the corpus from the last run
       run: |
@@ -45,7 +49,7 @@ jobs:
           build-ossfuzz-withavx/fuzz/fuzz_$fuzzer       out/$fuzzer -max_total_time=20
           build-ossfuzz-noavx/fuzz/fuzz_$fuzzer         out/$fuzzer -max_total_time=10
           build-ossfuzz-noavx8/fuzz/fuzz_$fuzzer        out/$fuzzer -max_total_time=10
-          echo disable msan runs, it fails inside the fuzzing engine and note the fuzzed code!
+          echo disable msan runs, it fails inside the fuzzing engine and not the fuzzed code!
           echo build-ossfuzz-msan-noavx8/fuzz/fuzz_$fuzzer   out/$fuzzer -max_total_time=10 -reload=0
           echo build-ossfuzz-msan-withavx8/fuzz/fuzz_$fuzzer out/$fuzzer -max_total_time=10 -reload=0
           echo now have $(ls out/$fuzzer |wc -l) files in corpus        
