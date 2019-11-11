@@ -37,7 +37,7 @@ jobs:
         which clang++
         clang++ --version
     - name: Build all the variants
-      run: ./build_like_ossfuzz.sh      
+      run: fuzz/build_fuzzer_variants.sh
     - name: Run the fastest fuzzer to explore fast
       run: |
         for fuzzer in $allfuzzers; do
