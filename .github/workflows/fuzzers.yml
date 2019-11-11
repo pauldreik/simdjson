@@ -1,8 +1,9 @@
 name: Run fuzzers on stored corpus and test it with valgrind
 
-# In the case of a pull request happening at the same time as a pull
-# request, there is no risk that the corpus is broken, since it
-# is only uploaded for the master
+# In the case of a pull request happening at the same time as a cron
+# job, there is a risk two jobs run at the same time. Therefore,
+# the corpus is only uploaded for the master branch. Pull requests will
+# fuzz for a short while, but the results are not uploaded.
 on:
   push:
   pull_request:
@@ -24,7 +25,7 @@ jobs:
     - uses: actions/checkout@v1
       with:
         # remove this once integrated
-        ref: paul/fuzz_experiment    
+        # ref: paul/fuzz_experiment
     - name: Download the corpus from the last run
       run: |
         wget --quiet https://dl.bintray.com/pauldreik/simdjson-fuzz-corpus/corpus/corpus.tar
