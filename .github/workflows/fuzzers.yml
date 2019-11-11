@@ -23,7 +23,7 @@ jobs:
         chmod +x llvm.sh
         sudo ./llvm.sh 8
     - uses: actions/checkout@v1
-      with:
+        # with:
         # remove this once integrated
         # ref: paul/fuzz_experiment
     - name: Download the corpus from the last run
