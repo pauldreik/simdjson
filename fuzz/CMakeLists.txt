@@ -29,6 +29,7 @@ set(SOURCES
   fuzz_parser.cpp
 #  fuzz_minify.cpp   # <--- does not pass the build check test on oss-fuzz, says "partially instrumented". help needed!
   fuzz_dump.cpp
+  fuzz_parsedjson.cpp
 )
 
 macro(implement_fuzzer sourcefile)
