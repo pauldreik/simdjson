@@ -24,5 +24,7 @@ if [ ! -d $bdir ] ; then
 fi
 
 # run the fuzzers as normal, then run
+#cd build-coverage
 #gcovr -r . --html --html-details --sort-uncovered -o out.html
-# and view the results
+# and view the results in out.html
+'
