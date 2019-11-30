@@ -15,12 +15,12 @@ ParsedJson::ParsedJson(ParsedJson &&p)
       current_loc(p.current_loc), n_structural_indexes(p.n_structural_indexes),
       structural_indexes(p.structural_indexes), tape(p.tape),
       containing_scope_offset(p.containing_scope_offset),
-      ret_address(p.ret_address), string_buf(p.string_buf),
+      ret_address(std::move(p.ret_address)), string_buf(p.string_buf),
       current_string_buf_loc(p.current_string_buf_loc), valid(p.valid) {
   p.structural_indexes = nullptr;
   p.tape = nullptr;
   p.containing_scope_offset = nullptr;
-  p.ret_address = nullptr;
+  //p.ret_address = nullptr;
   p.string_buf = nullptr;
   p.current_string_buf_loc = nullptr;
 }
@@ -44,8 +44,8 @@ ParsedJson &ParsedJson::operator=(ParsedJson &&p) {
   p.tape = nullptr;
   containing_scope_offset = p.containing_scope_offset;
   p.containing_scope_offset = nullptr;
-  ret_address = p.ret_address;
-  p.ret_address = nullptr;
+  ret_address = std::move(p.ret_address);
+  //p.ret_address = nullptr;
   string_buf = p.string_buf;
   p.string_buf = nullptr;
   current_string_buf_loc = p.current_string_buf_loc;
@@ -88,15 +88,16 @@ bool ParsedJson::allocate_capacity(size_t len, size_t max_depth) {
   tape = new (std::nothrow) uint64_t[local_tape_capacity];
   containing_scope_offset = new (std::nothrow) uint32_t[max_depth];
 #ifdef SIMDJSON_USE_COMPUTED_GOTO
-  ret_address = new (std::nothrow) void *[max_depth];
+  //ret_address = new (std::nothrow) void *[max_depth];
+  ret_address.reset(new (std::nothrow) void *[max_depth]);
 #else
   ret_address = new (std::nothrow) char[max_depth];
 #endif
   if ((string_buf == nullptr) || (tape == nullptr) ||
-      (containing_scope_offset == nullptr) || (ret_address == nullptr) ||
+      (containing_scope_offset == nullptr) || ret_address ||
       (structural_indexes == nullptr)) {
     std::cerr << "Could not allocate memory" << std::endl;
-    delete[] ret_address;
+    //delete[] ret_address;
     delete[] containing_scope_offset;
     delete[] tape;
     delete[] string_buf;
@@ -131,7 +132,8 @@ void ParsedJson::deallocate() {
   depth_capacity = 0;
   tape_capacity = 0;
   string_capacity = 0;
-  delete[] ret_address;
+  //delete[] ret_address;
+  ret_address.reset();
   delete[] containing_scope_offset;
   delete[] tape;
   delete[] string_buf;

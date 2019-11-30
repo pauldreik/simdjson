@@ -5,6 +5,7 @@
 #include "simdjson/simdjson.h"
 #include <cstring>
 #include <iostream>
+#include <memory>
 
 #define JSON_VALUE_MASK 0xFFFFFFFFFFFFFF
 
@@ -118,7 +119,8 @@ public:
   uint64_t *tape;
   uint32_t *containing_scope_offset;
 #ifdef SIMDJSON_USE_COMPUTED_GOTO
-  void **ret_address;
+  //void **ret_address;
+  std::unique_ptr<void*[]> ret_address;
 #else
   char *ret_address;
 #endif
