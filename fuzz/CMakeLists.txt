@@ -33,6 +33,10 @@ set(SOURCES
   fuzz_dump_raw_tape.cpp
 )
 
+add_custom_target(print_all_fuzz_targets
+    COMMAND ${CMAKE_COMMAND} -E echo ${SOURCES}
+)
+
 macro(implement_fuzzer sourcefile)
   get_filename_component(basename ${sourcefile} NAME_WE)
   set(name ${basename})
