@@ -168,8 +168,8 @@ bool ParsedJson::print_json(std::ostream &os) const {
     return false;
   }
   tape_idx++;
-  bool *in_object = new bool[depth_capacity];
-  auto *in_object_idx = new size_t[depth_capacity];
+  std::unique_ptr<bool[]> in_object(new bool[depth_capacity]);
+  std::unique_ptr<size_t[]> in_object_idx(new size_t[depth_capacity]);
   int depth = 1; // only root at level 0
   in_object_idx[depth] = 0;
   in_object[depth] = false;
@@ -203,24 +203,18 @@ bool ParsedJson::print_json(std::ostream &os) const {
       break;
     case 'l': // we have a long int
       if (tape_idx + 1 >= how_many) {
-        delete[] in_object;
-        delete[] in_object_idx;
         return false;
       }
       os << static_cast<int64_t>(tape[++tape_idx]);
       break;
     case 'u':
       if (tape_idx + 1 >= how_many) {
-        delete[] in_object;
-        delete[] in_object_idx;
         return false;
       }
       os << tape[++tape_idx];
       break;
     case 'd': // we have a double
       if (tape_idx + 1 >= how_many) {
-        delete[] in_object;
-        delete[] in_object_idx;
         return false;
       }
       double answer;
@@ -258,18 +252,12 @@ bool ParsedJson::print_json(std::ostream &os) const {
       break;
     case 'r': // we start and end with the root node
       fprintf(stderr, "should we be hitting the root node?\n");
-      delete[] in_object;
-      delete[] in_object_idx;
       return false;
     default:
       fprintf(stderr, "bug %c\n", type);
-      delete[] in_object;
-      delete[] in_object_idx;
       return false;
     }
   }
-  delete[] in_object;
-  delete[] in_object_idx;
   return true;
 }
 
