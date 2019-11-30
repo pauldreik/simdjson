@@ -29,7 +29,7 @@ really_inline void find_whitespace_and_operators(
   whitespace = v.map([&](simd8<uint8_t> _v) { return _v.any_bits_set(0x18); }).to_bitmask();
 }
 
-#include "generic/simdutf8check.h"
+#include "generic/utf8_fastvalidate_algorithm.h"
 #include "generic/stage1_find_marks.h"
 
 } // namespace simdjson::arm64
@@ -38,7 +38,7 @@ namespace simdjson {
 
 template <>
 int find_structural_bits<Architecture::ARM64>(const uint8_t *buf, size_t len, simdjson::ParsedJson &pj, bool streaming) {
-  return arm64::find_structural_bits(buf, len, pj, streaming);
+  return arm64::stage1::find_structural_bits<64>(buf, len, pj, streaming);
 }
 
 } // namespace simdjson
