@@ -14,7 +14,7 @@ jobs:
   build:    
     runs-on: ubuntu-latest
     env:
-      allfuzzers: parser dump
+      allfuzzers: parser minify dump
     steps:
     - name: Install packages necessary for building
       run: |
