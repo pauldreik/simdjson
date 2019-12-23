@@ -94,7 +94,7 @@ bool ParsedJson::allocate_capacity(size_t len, size_t max_depth) {
   ret_address = new (std::nothrow) char[max_depth];
 #endif
   if ((string_buf == nullptr) || (tape == nullptr) ||
-      (containing_scope_offset == nullptr) || ret_address ||
+      (containing_scope_offset == nullptr) || !ret_address ||
       (structural_indexes == nullptr)) {
     std::cerr << "Could not allocate memory" << std::endl;
     //delete[] ret_address;
