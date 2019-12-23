@@ -242,6 +242,7 @@ bool ParsedJson::dump_raw_tape(std::ostream &os) const {
       memcpy(&string_length, string_buf.get() + payload, sizeof(uint32_t));
       print_with_escapes(
           (const unsigned char *)(string_buf.get() + payload + sizeof(uint32_t)),
+                  os,
           string_length);
       os << '"';
       os << '\n';
