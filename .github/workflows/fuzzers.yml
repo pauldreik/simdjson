@@ -65,6 +65,10 @@ jobs:
             exit 1
           fi
         done
+    - name: run the problematic fuzzer
+      run: |
+        fuzzer=dump
+        build-ossfuzz-withavx/fuzz/fuzz_$fuzzer       out/$fuzzer -max_total_time=300 $artifactsprefix || touch failed
     - name: Run the other fuzzer variants for $fuzzer, with sanitizers etc
       run: |
         for fuzzer in $allfuzzers; do      
