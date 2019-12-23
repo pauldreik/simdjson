@@ -114,9 +114,11 @@ public:
   uint32_t current_loc{0};
   uint32_t n_structural_indexes{0};
 
-  uint32_t *structural_indexes;
+  //uint32_t *structural_indexes;
+  std::unique_ptr<uint32_t[]> structural_indexes;
 
-  uint64_t *tape;
+  //uint64_t *tape;
+  std::unique_ptr<uint64_t[]> tape;
   //uint32_t *containing_scope_offset;
   std::unique_ptr<uint32_t[]> containing_scope_offset;
 #ifdef SIMDJSON_USE_COMPUTED_GOTO
@@ -126,7 +128,8 @@ public:
   char *ret_address;
 #endif
 
-  uint8_t *string_buf; // should be at least byte_capacity
+  //uint8_t *string_buf; // should be at least byte_capacity
+  std::unique_ptr<uint8_t[]> string_buf;// should be at least byte_capacity
   uint8_t *current_string_buf_loc;
   bool valid{false};
   int error_code{simdjson::UNITIALIZED};
