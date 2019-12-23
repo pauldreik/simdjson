@@ -56,7 +56,7 @@ On a Skylake processor, the parsing speeds (in GB/s) of various processors on th
 
 ## Requirements
 
-- We support platforms like Linux or macOS, as well as Windows through Visual Studio 2017 or later.
+- We support 64-bit platforms like Linux or macOS, as well as Windows through Visual Studio 2017 or later.
 - A processor with
   - AVX2 (i.e., Intel processors starting with the Haswell microarchitecture released 2013 and AMD processors starting with the Zen microarchitecture released 2017),
   - or SSE 4.2 and CLMUL (i.e., Intel processors going back to Westmere released in 2010 or AMD processors starting with the Jaguar used in the PS4 and XBox One)
@@ -225,7 +225,7 @@ If you are on an x64 processor, the runtime dispatching assigns the right code p
 
 ## Usage (old-school Makefile on platforms like Linux or macOS)
 
-Requirements: recent clang or gcc, and make. We recommend at least GNU GCC/G++ 7 or LLVM clang 6. A system like Linux or macOS is expected.
+Requirements: recent clang or gcc, and make. We recommend at least GNU GCC/G++ 7 or LLVM clang 6. A 64-bit system like Linux or macOS is expected.
 
 To test:
 
@@ -249,7 +249,7 @@ To run comparative benchmarks (with other parsers):
 make benchmark
 ```
 
-## Usage (CMake on platforms like Linux or macOS)
+## Usage (CMake on 64-bit platforms like Linux or macOS)
 
 Requirements: We require a recent version of cmake. On macOS, the easiest way to install cmake might be to use [brew](https://brew.sh) and then type
 
@@ -301,9 +301,9 @@ make
 make test
 ```
 
-## Usage (CMake on Windows using Visual Studio)
+## Usage (CMake on 64-bit Windows using Visual Studio)
 
-We assume you have a common Windows PC with at least Visual Studio 2017 and an x64 processor with AVX2 support (2013 Intel Haswell or later) or SSE 4.2 + CLMUL (2010 Westmere or later).
+We assume you have a common 64-bit Windows PC with at least Visual Studio 2017 and an x64 processor with AVX2 support (2013 Intel Haswell or later) or SSE 4.2 + CLMUL (2010 Westmere or later).
 
 - Grab the simdjson code from GitHub, e.g., by cloning it using [GitHub Desktop](https://desktop.github.com/).
 - Install [CMake](https://cmake.org/download/). When you install it, make sure to ask that `cmake` be made available from the command line. Please choose a recent version of cmake.
@@ -314,11 +314,11 @@ We assume you have a common Windows PC with at least Visual Studio 2017 and an x
 
 
 
-## Usage (Using `vcpkg` on Windows, Linux and MacOS)
+## Usage (Using `vcpkg` on 64-bit Windows, Linux and macOS)
 
-[vcpkg](https://github.com/Microsoft/vcpkg) users on Windows, Linux and MacOS can download and install `simdjson` with one single command from their favorite shell.
+[vcpkg](https://github.com/Microsoft/vcpkg) users on Windows, Linux and macOS can download and install `simdjson` with one single command from their favorite shell.
 
-On Linux and MacOS:
+On 64-bit Linux and macOS:
 
 ```
 $ ./vcpkg install simdjson
