@@ -4,7 +4,7 @@
 namespace simdjson {
 ParsedJson::ParsedJson()
     : structural_indexes(nullptr), tape(nullptr),
-      containing_scope_offset(nullptr), ret_address(nullptr),
+      ret_address(nullptr),
       string_buf(nullptr), current_string_buf_loc(nullptr) {}
 
 ParsedJson::~ParsedJson() { deallocate(); }
@@ -14,12 +14,12 @@ ParsedJson::ParsedJson(ParsedJson &&p)
       tape_capacity(p.tape_capacity), string_capacity(p.string_capacity),
       current_loc(p.current_loc), n_structural_indexes(p.n_structural_indexes),
       structural_indexes(p.structural_indexes), tape(p.tape),
-      containing_scope_offset(p.containing_scope_offset),
+      containing_scope_offset(std::move(p.containing_scope_offset)),
       ret_address(std::move(p.ret_address)), string_buf(p.string_buf),
       current_string_buf_loc(p.current_string_buf_loc), valid(p.valid) {
   p.structural_indexes = nullptr;
   p.tape = nullptr;
-  p.containing_scope_offset = nullptr;
+  //p.containing_scope_offset = nullptr;
   //p.ret_address = nullptr;
   p.string_buf = nullptr;
   p.current_string_buf_loc = nullptr;
@@ -42,8 +42,8 @@ ParsedJson &ParsedJson::operator=(ParsedJson &&p) {
   p.structural_indexes = nullptr;
   tape = p.tape;
   p.tape = nullptr;
-  containing_scope_offset = p.containing_scope_offset;
-  p.containing_scope_offset = nullptr;
+  containing_scope_offset = std::move(p.containing_scope_offset);
+  //p.containing_scope_offset = nullptr;
   ret_address = std::move(p.ret_address);
   //p.ret_address = nullptr;
   string_buf = p.string_buf;
@@ -86,7 +86,7 @@ bool ParsedJson::allocate_capacity(size_t len, size_t max_depth) {
   size_t local_string_capacity = ROUNDUP_N(5 * len / 3 + 32, 64);
   string_buf = new (std::nothrow) uint8_t[local_string_capacity];
   tape = new (std::nothrow) uint64_t[local_tape_capacity];
-  containing_scope_offset = new (std::nothrow) uint32_t[max_depth];
+  containing_scope_offset.reset(new (std::nothrow) uint32_t[max_depth]);
 #ifdef SIMDJSON_USE_COMPUTED_GOTO
   //ret_address = new (std::nothrow) void *[max_depth];
   ret_address.reset(new (std::nothrow) void *[max_depth]);
@@ -94,11 +94,11 @@ bool ParsedJson::allocate_capacity(size_t len, size_t max_depth) {
   ret_address = new (std::nothrow) char[max_depth];
 #endif
   if ((string_buf == nullptr) || (tape == nullptr) ||
-      (containing_scope_offset == nullptr) || !ret_address ||
+      !containing_scope_offset || !ret_address ||
       (structural_indexes == nullptr)) {
     std::cerr << "Could not allocate memory" << std::endl;
     //delete[] ret_address;
-    delete[] containing_scope_offset;
+    //delete[] containing_scope_offset;
     delete[] tape;
     delete[] string_buf;
     delete[] structural_indexes;
@@ -134,7 +134,8 @@ void ParsedJson::deallocate() {
   string_capacity = 0;
   //delete[] ret_address;
   ret_address.reset();
-  delete[] containing_scope_offset;
+  //delete[] containing_scope_offset;
+  containing_scope_offset.reset();
   delete[] tape;
   delete[] string_buf;
   delete[] structural_indexes;

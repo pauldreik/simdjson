@@ -117,7 +117,8 @@ public:
   uint32_t *structural_indexes;
 
   uint64_t *tape;
-  uint32_t *containing_scope_offset;
+  //uint32_t *containing_scope_offset;
+  std::unique_ptr<uint32_t[]> containing_scope_offset;
 #ifdef SIMDJSON_USE_COMPUTED_GOTO
   //void **ret_address;
   std::unique_ptr<void*[]> ret_address;
