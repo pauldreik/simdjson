@@ -1,6 +1,13 @@
 #!/bin/sh
 #
-# make a coverage build
+# makes a coverage build.
+#
+# To measure and display the coverage:
+#
+#cd build-coverage
+#fuzz/fuzz_parser path/to/corpus/* # repeat with other fuzzers
+#gcovr -r . --html --html-details --sort-uncovered -o out.html
+# and view the results in out.html
 
 bdir=build-coverage
 if [ ! -d $bdir ] ; then
@@ -23,8 +30,5 @@ if [ ! -d $bdir ] ; then
     cd ..
 fi
 
-# run the fuzzers as normal, then run
-#cd build-coverage
-#gcovr -r . --html --html-details --sort-uncovered -o out.html
-# and view the results in out.html
-'
+
+
