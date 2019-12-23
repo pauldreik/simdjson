@@ -11,7 +11,6 @@ static inline void print_with_escapes(const unsigned char *src) {
   while (*src) {
     switch (*src) {
     case '\b':
-        //paul: why do these print directly to stdout?
       putchar('\\');
       putchar('b');
       break;
