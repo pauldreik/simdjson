@@ -17,6 +17,9 @@ jobs:
       allfuzzers: parser dump
       artifactsprefix: -artifact_prefix=fuzzfailure/
     steps:
+    - name: output cpu info
+      run: |
+        sed '/^$/Q' < /proc/cpuinfo
     - name: Install packages necessary for building
       run: |
         sudo apt update
