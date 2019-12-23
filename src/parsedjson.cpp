@@ -2,14 +2,6 @@
 #include "simdjson/jsonformatutils.h"
 
 namespace simdjson {
-ParsedJson::ParsedJson()
-    : structural_indexes(nullptr), tape(nullptr),
-      ret_address(nullptr),
-      string_buf(nullptr), current_string_buf_loc(nullptr) {}
-
-ParsedJson::~ParsedJson() { deallocate(); }
-
-
 
 WARN_UNUSED
 bool ParsedJson::allocate_capacity(size_t len, size_t max_depth) {
