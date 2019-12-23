@@ -24,8 +24,8 @@ public:
   // allocate memory
   ParsedJson();
   ~ParsedJson();
-  ParsedJson(ParsedJson &&p);
-  ParsedJson &operator=(ParsedJson &&o);
+  ParsedJson(ParsedJson &&p)=default;
+  ParsedJson &operator=(ParsedJson &&o)=default;
 
   // if needed, allocate memory so that the object is able to process JSON
   // documents having up to len bytes and max_depth "depth"

@@ -9,54 +9,7 @@ ParsedJson::ParsedJson()
 
 ParsedJson::~ParsedJson() { deallocate(); }
 
-ParsedJson::ParsedJson(ParsedJson &&p)
-    : byte_capacity(p.byte_capacity), depth_capacity(p.depth_capacity),
-      tape_capacity(p.tape_capacity), string_capacity(p.string_capacity),
-      current_loc(p.current_loc), n_structural_indexes(p.n_structural_indexes),
-      structural_indexes(std::move(p.structural_indexes)), tape(std::move(p.tape)),
-      containing_scope_offset(std::move(p.containing_scope_offset)),
-      ret_address(std::move(p.ret_address)), string_buf(std::move(p.string_buf)),
-      current_string_buf_loc(p.current_string_buf_loc), valid(p.valid) {
-  p.structural_indexes = nullptr;
-  p.tape = nullptr;
-  //p.containing_scope_offset = nullptr;
-  //p.ret_address = nullptr;
-  p.string_buf = nullptr;
-  p.current_string_buf_loc = nullptr;
-}
 
-ParsedJson &ParsedJson::operator=(ParsedJson &&p) {
-  byte_capacity = p.byte_capacity;
-  p.byte_capacity = 0;
-  depth_capacity = p.depth_capacity;
-  p.depth_capacity = 0;
-  tape_capacity = p.tape_capacity;
-  p.tape_capacity = 0;
-  string_capacity = p.string_capacity;
-  p.string_capacity = 0;
-  current_loc = p.current_loc;
-  p.current_loc = 0;
-  n_structural_indexes = p.n_structural_indexes;
-  p.n_structural_indexes = 0;
-  //structural_indexes = p.structural_indexes;
-  //p.structural_indexes = nullptr;
-  structural_indexes=std::move(p.structural_indexes);
-  //tape = p.tape;
-  //p.tape = nullptr;
-  tape=std::move(p.tape);
-  containing_scope_offset = std::move(p.containing_scope_offset);
-  //p.containing_scope_offset = nullptr;
-  ret_address = std::move(p.ret_address);
-  //p.ret_address = nullptr;
-  //string_buf = p.string_buf;
-  //p.string_buf = nullptr;
-  string_buf=std::move(p.string_buf);
-  current_string_buf_loc = p.current_string_buf_loc;
-  p.current_string_buf_loc = nullptr;
-  valid = p.valid;
-  p.valid = false;
-  return *this;
-}
 
 WARN_UNUSED
 bool ParsedJson::allocate_capacity(size_t len, size_t max_depth) {
@@ -136,15 +89,10 @@ void ParsedJson::deallocate() {
   depth_capacity = 0;
   tape_capacity = 0;
   string_capacity = 0;
-  //delete[] ret_address;
   ret_address.reset();
-  //delete[] containing_scope_offset;
   containing_scope_offset.reset();
-  //delete[] tape;
   tape.reset();
-  //delete[] string_buf;
   string_buf.reset();
-  //delete[] structural_indexes;
   structural_indexes.reset();
   valid = false;
 }
