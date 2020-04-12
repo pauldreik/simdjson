@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <cstring>
 #include <dirent.h>
 #include <inttypes.h>
@@ -11,7 +10,7 @@
 #define JSON_TEST_NUMBERS
 #endif
 
-#include "simdjson/common_defs.h"
+#include "simdjson.h"
 
 // ulp distance
 // Marc B. Reynolds, 2016-2019
@@ -120,20 +119,18 @@ void found_float(double result, const uint8_t *buf) {
     parse_error |= PARSE_ERROR;
     return;
   }
-  // we want to get some reasonable relative accuracy
-  uint64_t ULP = f64_ulp_dist(expected, result);
-  if (f64_ulp_dist(expected, result) > 1) {
+  if (expected != result) {
     fprintf(stderr, "parsed %.128e from \n", result);
     fprintf(stderr, "       %.32s whereas strtod gives\n", buf);
     fprintf(stderr, "       %.128e,", expected);
     fprintf(stderr, " while parsing %s \n", fullpath);
-    fprintf(stderr, " ===========  ULP:  %u,", (unsigned int)ULP);
+    fprintf(stderr, " ===========  ULP:  %u,", (unsigned int)f64_ulp_dist(expected, result));
     parse_error |= PARSE_ERROR;
   }
 }
 
-#include "simdjson/jsonparser.h"
-#include "src/stage2_build_tape.cpp"
+#include "simdjson.h"
+#include "simdjson.cpp"
 
 /**
  * Does the file filename ends with the given extension.
@@ -171,25 +168,19 @@ bool validate(const char *dirname) {
       } else {
         strcpy(fullpath + dirlen, name);
       }
-      simdjson::padded_string p;
-      try {
-        simdjson::get_corpus(fullpath).swap(p);
-      } catch (const std::exception &e) {
-        std::cout << "Could not load the file " << fullpath << std::endl;
+      auto [p, error] = simdjson::padded_string::load(fullpath);
+      if (error) {
+        std::cerr << "Could not load the file " << fullpath << std::endl;
         return EXIT_FAILURE;
       }
       // terrible hack but just to get it working
-      simdjson::ParsedJson pj;
-      bool allocok = pj.allocate_capacity(p.size(), 1024);
-      if (!allocok) {
-        std::cerr << "can't allocate memory" << std::endl;
-        return false;
-      }
       float_count = 0;
       int_count = 0;
       invalid_count = 0;
       total_count += float_count + int_count + invalid_count;
-      bool isok = json_parse(p, pj);
+      simdjson::dom::parser parser;
+      auto [doc, err] = parser.parse(p);
+      bool isok = (err == simdjson::error_code::SUCCESS);
       if (int_count + float_count + invalid_count > 0) {
         printf("File %40s %s --- integers: %10zu floats: %10zu invalid: %10zu "
                "total numbers: %10zu \n",

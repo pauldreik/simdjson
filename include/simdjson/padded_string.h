@@ -1,80 +1,130 @@
-#ifndef SIMDJSON_PADDING_STRING_H
-#define SIMDJSON_PADDING_STRING_H
+#ifndef SIMDJSON_PADDED_STRING_H
+#define SIMDJSON_PADDED_STRING_H
 #include "simdjson/portability.h"
+#include "simdjson/common_defs.h" // for SIMDJSON_PADDING
+#include "simdjson/error.h"
+
 #include <cstring>
 #include <memory>
 #include <string>
 
 namespace simdjson {
-// low-level function to allocate memory with padding so we can read passed the
-// "length" bytes safely. if you must provide a pointer to some data, create it
-// with this function: length is the max. size in bytes of the string caller is
-// responsible to free the memory (free(...))
-char *allocate_padded_buffer(size_t length);
 
-// Simple string with padded allocation.
-// We deliberately forbid copies, users should rely on swap or move
-// constructors.
-class padded_string {
-public:
-  explicit padded_string() noexcept : viable_size(0), data_ptr(nullptr) {}
-  explicit padded_string(size_t length) noexcept
-      : viable_size(length), data_ptr(allocate_padded_buffer(length)) {
+/**
+ * String with extra allocation for ease of use with parser::parse()
+ *
+ * This is a move-only class, it cannot be copied.
+ */
+struct padded_string final {
 
-    if (data_ptr != nullptr)
-      data_ptr[length] = '\0'; // easier when you need a c_str
-  }
-  explicit padded_string(char *data, size_t length) noexcept
-      : viable_size(length), data_ptr(allocate_padded_buffer(length)) {
-    if (data_ptr != nullptr) {
-      memcpy(data_ptr, data, length);
-      data_ptr[length] = '\0'; // easier when you need a c_str
-    }
-  }
-  padded_string(std::string s) noexcept
-      : viable_size(s.size()), data_ptr(allocate_padded_buffer(s.size())) {
-    if (data_ptr != nullptr) {
-      memcpy(data_ptr, s.data(), s.size());
-      data_ptr[s.size()] = '\0'; // easier when you need a c_str
-    }
-  }
-  padded_string(padded_string &&o) noexcept
-      : viable_size(o.viable_size), data_ptr(o.data_ptr) {
-    o.data_ptr = nullptr; // we take ownership
-  }
+  /**
+   * Create a new, empty padded string.
+   */
+  explicit inline padded_string() noexcept;
+  /**
+   * Create a new padded string buffer.
+   *
+   * @param length the size of the string.
+   */
+  explicit inline padded_string(size_t length) noexcept;
+  /**
+   * Create a new padded string by copying the given input.
+   *
+   * @param data the buffer to copy
+   * @param length the number of bytes to copy
+   */
+  explicit inline padded_string(const char *data, size_t length) noexcept;
+  /**
+   * Create a new padded string by copying the given input.
+   *
+   * @param str_ the string to copy
+   */
+  inline padded_string(const std::string & str_ ) noexcept;
+  /**
+   * Create a new padded string by copying the given input.
+   *
+   * @param str_ the string to copy
+   */
+  inline padded_string(std::string_view sv_) noexcept;
+  /**
+   * Move one padded string into another.
+   *
+   * The original padded string will be reduced to zero capacity.
+   *
+   * @param o the string to move.
+   */
+  inline padded_string(padded_string &&o) noexcept;
+  /**
+   * Move one padded string into another.
+   *
+   * The original padded string will be reduced to zero capacity.
+   *
+   * @param o the string to move.
+   */
+  inline padded_string &operator=(padded_string &&o) noexcept;
+  inline void swap(padded_string &o) noexcept;
+  ~padded_string() noexcept;
 
-  padded_string &operator=(padded_string &&o) {
-    data_ptr = o.data_ptr;
-    viable_size = o.viable_size;
-    o.data_ptr = nullptr; // we take ownership
-    o.viable_size = 0;
-    return *this;
-  }
+  /**
+   * The length of the string.
+   *
+   * Does not include padding.
+   */
+  size_t size() const noexcept;
 
-  void swap(padded_string &o) {
-    size_t tmp_viable_size = viable_size;
-    char *tmp_data_ptr = data_ptr;
-    viable_size = o.viable_size;
-    data_ptr = o.data_ptr;
-    o.data_ptr = tmp_data_ptr;
-    o.viable_size = tmp_viable_size;
-  }
+  /**
+   * The length of the string.
+   *
+   * Does not include padding.
+   */
+  size_t length() const noexcept;
 
-  ~padded_string() { aligned_free_char(data_ptr); }
+  /**
+   * The string data.
+   **/
+  const char *data() const noexcept;
 
-  size_t size() const { return viable_size; }
+  /**
+   * The string data.
+   **/
+  char *data() noexcept;
 
-  size_t length() const { return viable_size; }
+  /**
+   * Create a std::string_view with the same content.
+   */
+  operator std::string_view() const;
 
-  char *data() const { return data_ptr; }
+  /**
+   * Load this padded string from a file.
+   *
+   * @param path the path to the file.
+   **/
+  inline static simdjson_result<padded_string> load(const std::string &path) noexcept;
 
 private:
   padded_string &operator=(const padded_string &o) = delete;
   padded_string(const padded_string &o) = delete;
 
   size_t viable_size;
-  char *data_ptr;
-};
+  char *data_ptr{nullptr};
+
+}; // padded_string
+
 } // namespace simdjson
 
-#endif
+// This is deliberately outside of simdjson so that people get it without having to use the namespace
+inline simdjson::padded_string operator "" _padded(const char *str, size_t len) {
+  return simdjson::padded_string(str, len);
+}
+
+namespace simdjson::internal {
+
+// low-level function to allocate memory with padding so we can read past the
+// "length" bytes safely. if you must provide a pointer to some data, create it
+// with this function: length is the max. size in bytes of the string caller is
+// responsible to free the memory (free(...))
+inline char *allocate_padded_buffer(size_t length) noexcept;
+
+} // namespace simdjson::internal;
+
+#endif // SIMDJSON_PADDED_STRING_H

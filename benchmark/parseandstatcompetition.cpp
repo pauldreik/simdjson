@@ -1,7 +1,10 @@
-#include "simdjson/jsonparser.h"
+#include "simdjson.h"
 #include <unistd.h>
 
 #include "benchmark.h"
+
+SIMDJSON_PUSH_DISABLE_ALL_WARNINGS
+
 // #define RAPIDJSON_SSE2 // bad for performance
 // #define RAPIDJSON_SSE42 // bad for performance
 #include "rapidjson/document.h"
@@ -10,6 +13,8 @@
 #include "rapidjson/writer.h"
 
 #include "sajson.h"
+
+SIMDJSON_POP_DISABLE_WARNINGS
 
 using namespace rapidjson;
 using namespace simdjson;
@@ -43,67 +48,60 @@ void print_stat(const stat_t &s) {
          s.true_count, s.false_count);
 }
 
+
+really_inline void simdjson_process_atom(stat_t &s,
+                                         simdjson::dom::element element) {
+  if (element.is<double>()) {
+    s.number_count++;
+  } else if (element.is<bool>()) {
+    if (element.get<bool>()) {
+      s.true_count++;
+    } else {
+      s.false_count++;
+    }
+  } else if (element.is_null()) {
+    s.null_count++;
+  }
+}
+
+void simdjson_recurse(stat_t &s, simdjson::dom::element element) {
+  if (element.is<simdjson::dom::array>()) {
+    s.array_count++;
+    auto [array, array_error] = element.get<simdjson::dom::array>();
+    for (auto child : array) {
+      if (child.is<simdjson::dom::array>() || child.is<simdjson::dom::object>()) {
+        simdjson_recurse(s, child);
+      } else {
+        simdjson_process_atom(s, child);
+      }
+    }
+  } else if (element.is<simdjson::dom::object>()) {
+    s.object_count++;
+    auto [object, object_error] = element.get<simdjson::dom::object>();
+    for (auto [key, value] : object) {
+      if (value.is<simdjson::dom::array>() || value.is<simdjson::dom::object>()) {
+        simdjson_recurse(s, value);
+      } else {
+        simdjson_process_atom(s, value);
+      }
+    }
+  } else {
+    simdjson_process_atom(s, element);
+  }
+}
+
 __attribute__((noinline)) stat_t
 simdjson_compute_stats(const simdjson::padded_string &p) {
-  stat_t answer;
-  simdjson::ParsedJson pj = build_parsed_json(p);
-  answer.valid = pj.is_valid();
-  if (!answer.valid) {
-    return answer;
+  stat_t s{};
+  simdjson::dom::parser parser;
+  auto [doc, error] = parser.parse(p);
+  if (error) {
+    s.valid = false;
+    return s;
   }
-  answer.number_count = 0;
-  answer.object_count = 0;
-  answer.array_count = 0;
-  answer.null_count = 0;
-  answer.true_count = 0;
-  answer.false_count = 0;
-  size_t tape_idx = 0;
-  uint64_t tape_val = pj.tape[tape_idx++];
-  uint8_t type = (tape_val >> 56);
-  size_t how_many = 0;
-  assert(type == 'r');
-  how_many = tape_val & JSON_VALUE_MASK;
-  for (; tape_idx < how_many; tape_idx++) {
-    tape_val = pj.tape[tape_idx];
-    // uint64_t payload = tape_val & JSON_VALUE_MASK;
-    type = (tape_val >> 56);
-    switch (type) {
-    case 'l': // we have a long int
-      answer.number_count++;
-      tape_idx++; // skipping the integer
-      break;
-    case 'u': // we have a long uint
-      answer.number_count++;
-      tape_idx++; // skipping the unsigned integer
-      break;
-    case 'd': // we have a double
-      answer.number_count++;
-      tape_idx++; // skipping the double
-      break;
-    case 'n': // we have a null
-      answer.null_count++;
-      break;
-    case 't': // we have a true
-      answer.true_count++;
-      break;
-    case 'f': // we have a false
-      answer.false_count++;
-      break;
-    case '{': // we have an object
-      answer.object_count++;
-      break;
-    case '}': // we end an object
-      break;
-    case '[': // we start an array
-      answer.array_count++;
-      break;
-    case ']': // we end an array
-      break;
-    default:
-      break; // ignore
-    }
-  }
-  return answer;
+  s.valid = true;
+  simdjson_recurse(s, doc);
+  return s;
 }
 
 // see
@@ -153,11 +151,15 @@ __attribute__((noinline)) stat_t
 sasjon_compute_stats(const simdjson::padded_string &p) {
   stat_t answer;
   char *buffer = (char *)malloc(p.size());
+  if (buffer == nullptr) {
+    return answer;
+  }
   memcpy(buffer, p.data(), p.size());
   auto d = sajson::parse(sajson::dynamic_allocation(),
                          sajson::mutable_string_view(p.size(), buffer));
   answer.valid = d.is_valid();
   if (!answer.valid) {
+    free(buffer);
     return answer;
   }
   answer.number_count = 0;
@@ -211,12 +213,16 @@ __attribute__((noinline)) stat_t
 rapid_compute_stats(const simdjson::padded_string &p) {
   stat_t answer;
   char *buffer = (char *)malloc(p.size() + 1);
+  if (buffer == nullptr) {
+    return answer;
+  }
   memcpy(buffer, p.data(), p.size());
   buffer[p.size()] = '\0';
   rapidjson::Document d;
   d.ParseInsitu<kParseValidateEncodingFlag>(buffer);
   answer.valid = !d.HasParseError();
   if (!answer.valid) {
+    free(buffer);
     return answer;
   }
   answer.number_count = 0;
@@ -230,6 +236,32 @@ rapid_compute_stats(const simdjson::padded_string &p) {
   return answer;
 }
 
+__attribute__((noinline)) stat_t
+rapid_accurate_compute_stats(const simdjson::padded_string &p) {
+  stat_t answer;
+  char *buffer = (char *)malloc(p.size() + 1);
+  if (buffer == nullptr) {
+    return answer;
+  }
+  memcpy(buffer, p.data(), p.size());
+  buffer[p.size()] = '\0';
+  rapidjson::Document d;
+  d.ParseInsitu<kParseValidateEncodingFlag | kParseFullPrecisionFlag>(buffer);
+  answer.valid = !d.HasParseError();
+  if (!answer.valid) {
+    free(buffer);
+    return answer;
+  }
+  answer.number_count = 0;
+  answer.object_count = 0;
+  answer.array_count = 0;
+  answer.null_count = 0;
+  answer.true_count = 0;
+  answer.false_count = 0;
+  rapid_traverse(answer, d);
+  free(buffer);
+  return answer;
+}
 int main(int argc, char *argv[]) {
   bool verbose = false;
   bool just_data = false;
@@ -260,11 +292,9 @@ int main(int argc, char *argv[]) {
     std::cerr << "warning: ignoring everything after " << argv[optind + 1]
               << std::endl;
   }
-  simdjson::padded_string p;
-  try {
-    simdjson::get_corpus(filename).swap(p);
-  } catch (const std::exception &e) { // caught by reference to base
-    std::cout << "Could not load the file " << filename << std::endl;
+  auto [p, error] = simdjson::padded_string::load(filename);
+  if (error) {
+    std::cerr << "Could not load the file " << filename << std::endl;
     return EXIT_FAILURE;
   }
 
@@ -288,6 +318,11 @@ int main(int argc, char *argv[]) {
     printf("rapid:    ");
     print_stat(s2);
   }
+  stat_t s2a = rapid_accurate_compute_stats(p);
+  if (verbose) {
+    printf("rapid full:    ");
+    print_stat(s2a);
+  }
   stat_t s3 = sasjon_compute_stats(p);
   if (verbose) {
     printf("sasjon:   ");
@@ -300,10 +335,12 @@ int main(int argc, char *argv[]) {
   if (just_data) {
     printf("name cycles_per_byte cycles_per_byte_err gb_per_s gb_per_s_err \n");
   }
-  BEST_TIME("simdjson  ", simdjson_compute_stats(p).valid, true, , repeat,
-            volume, !just_data);
-  BEST_TIME("RapidJSON  ", rapid_compute_stats(p).valid, true, , repeat, volume,
-            !just_data);
-  BEST_TIME("sasjon  ", sasjon_compute_stats(p).valid, true, , repeat, volume,
-            !just_data);
+  BEST_TIME("simdjson            ", simdjson_compute_stats(p).valid, true, ,
+            repeat, volume, !just_data);
+  BEST_TIME("RapidJSON           ", rapid_compute_stats(p).valid, true, ,
+            repeat, volume, !just_data);
+  BEST_TIME("RapidJSON (precise) ", rapid_accurate_compute_stats(p).valid, true, ,
+            repeat, volume, !just_data);
+  BEST_TIME("sasjon              ", sasjon_compute_stats(p).valid, true, ,
+            repeat, volume, !just_data);
 }

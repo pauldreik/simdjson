@@ -1,4 +1,17 @@
 kind: pipeline
+name: x64-quicktests-libc
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: quicktests
+  image: conanio/clang8
+  user: root
+  commands: [ EXTRAFLAGS=-stdlib=libc++ make quicktests ]
+---
+kind: pipeline
 name: x64-quicktests
 
 platform:
@@ -22,7 +35,7 @@ steps:
   image: gcc:8
   environment:
     CHECKPERF_REPOSITORY: https://github.com/lemire/simdjson
-  commands: [ cat /proc/cpuinfo, make checkperf ]
+  commands: [ sed '/^$/Q' /proc/cpuinfo, make checkperf ]
 ---
 kind: pipeline
 name: x64-build
@@ -46,6 +59,48 @@ platform:
 steps:
 - name: slowtests
   image: gcc:8
+  commands: [ make slowtests ]
+---
+kind: pipeline
+name: x64-noexceptions-quicktests
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: quicktests
+  image: gcc:8
+  environment:
+    EXTRA_FLAGS: -fno-exceptions
+  commands: [ make quicktests ]
+---
+kind: pipeline
+name: x64-noexceptions-build
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build
+  image: gcc:8
+  environment:
+    EXTRA_FLAGS: -fno-exceptions
+  commands: [ make, make amalgamate ]
+---
+kind: pipeline
+name: x64-noexceptions-slowtests
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: slowtests
+  image: gcc:8
+  environment:
+    EXTRA_FLAGS: -fno-exceptions
   commands: [ make slowtests ]
 ---
 kind: pipeline
@@ -99,6 +154,48 @@ steps:
   commands: [ make slowtests ]
 ---
 kind: pipeline
+name: x64-amalgamated-build
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build
+  image: gcc:8
+  environment:
+    SIMDJSON_TEST_AMALGAMATED_HEADERS: 1
+  commands: [ make amalgamate, make ]
+---
+kind: pipeline
+name: x64-amalgamated-quicktests
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: quicktests
+  image: gcc:8
+  environment:
+    SIMDJSON_TEST_AMALGAMATED_HEADERS: 1
+  commands: [ make amalgamate, make quicktests ]
+---
+kind: pipeline
+name: x64-amalgamated-slowtests
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: slowtests
+  image: gcc:8
+  environment:
+    SIMDJSON_TEST_AMALGAMATED_HEADERS: 1
+  commands: [ make amalgamate, make slowtests ]
+---
+kind: pipeline
 name: stylecheck
 
 platform:
@@ -126,12 +223,36 @@ steps:
   environment:
     CC: clang
     CXX: clang++
+    CMAKE_FLAGS: -DSIMDJSON_BUILD_STATIC=OFF
   commands:
     - apt-get update -qq
-    - apt-get install -y clang make cmake
+    - apt-get install -y clang make cmake git
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_BUILD_STATIC=OFF $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
+    - make -j
+    - ctest --output-on-failure
+---
+kind: pipeline
+name: amd64_clang_cmake_no_exceptions
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: Build and Test
+  image: ubuntu:18.04
+  environment:
+    CC: clang
+    CXX: clang++
+    CMAKE_FLAGS: -DSIMDJSON_BUILD_STATIC=OFF
+  commands:
+    - apt-get update -qq
+    - apt-get install -y clang make cmake git
+    - $CC --version
+    - mkdir build && cd build
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ctest --output-on-failure
 ---
@@ -148,12 +269,13 @@ steps:
   environment:
     CC: clang
     CXX: clang++
+    CMAKE_FLAGS: -DSIMDJSON_BUILD_STATIC=ON
   commands:
     - apt-get update -qq
-    - apt-get install -y clang make cmake
+    - apt-get install -y clang make cmake git
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_BUILD_STATIC=ON $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ctest --output-on-failure
 ---
@@ -166,16 +288,17 @@ platform:
 
 steps:
 - name: Build and Test
-  image: gcc:7
+  image: gcc:8
   environment:
     CC: gcc
     CXX: g++
+    CMAKE_FLAGS: -DSIMDJSON_BUILD_STATIC=ON
   commands:
     - apt-get update -qq
     - apt-get install -y cmake 
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_BUILD_STATIC=ON $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ctest --output-on-failure
 ---
@@ -188,16 +311,17 @@ platform:
 
 steps:
 - name: Build and Test
-  image: gcc:7
+  image: gcc:8
   environment:
     CC: gcc
     CXX: g++
+    CMAKE_FLAGS: -DSIMDJSON_BUILD_STATIC=OFF
   commands:
     - apt-get update -qq
     - apt-get install -y cmake
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_BUILD_STATIC=OFF $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ctest --output-on-failure
 ---
@@ -214,12 +338,13 @@ steps:
   environment:
     CC: clang
     CXX: clang++
+    CMAKE_FLAGS: -DSIMDJSON_BUILD_STATIC=OFF
   commands:
     - apt-get update -qq
-    - apt-get install -y clang make cmake
+    - apt-get install -y clang make cmake git
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_BUILD_STATIC=OFF $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ctest --output-on-failure
 ---
@@ -232,16 +357,17 @@ platform:
 
 steps:
 - name: Build and Test
-  image: gcc:7
+  image: gcc:8
   environment:
     CC: gcc
     CXX: g++
+    CMAKE_FLAGS: -DSIMDJSON_BUILD_STATIC=OFF
   commands:
     - apt-get update -qq
     - apt-get install -y cmake
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_BUILD_STATIC=OFF $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ctest --output-on-failure
 ---
@@ -258,12 +384,13 @@ steps:
   environment:
     CC: clang
     CXX: clang++
+    CMAKE_FLAGS: -DSIMDJSON_BUILD_STATIC=ON
   commands:
     - apt-get update -qq
-    - apt-get install -y clang make cmake
+    - apt-get install -y clang make cmake git
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_BUILD_STATIC=ON $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ctest --output-on-failure
 ---
@@ -276,16 +403,17 @@ platform:
 
 steps:
 - name: Build and Test
-  image: gcc:7
+  image: gcc:8
   environment:
     CC: gcc
     CXX: g++
+    CMAKE_FLAGS: -DSIMDJSON_BUILD_STATIC=ON
   commands:
     - apt-get update -qq
     - apt-get install -y cmake
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_BUILD_STATIC=ON $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ctest --output-on-failure
 
@@ -303,12 +431,13 @@ steps:
   environment:
     CC: clang
     CXX: clang++
+    CMAKE_FLAGS: -DSIMDJSON_SANITIZE=ON
   commands:
     - apt-get update -qq
-    - apt-get install -y clang make cmake
+    - apt-get install -y clang make cmake git
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_SANITIZE=ON $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ASAN_OPTIONS="detect_leaks=0" ctest --output-on-failure
 ---
@@ -321,16 +450,17 @@ platform:
 
 steps:
 - name: Build and Test
-  image: gcc:7
+  image: gcc:8
   environment:
     CC: gcc
     CXX: g++
+    CMAKE_FLAGS: -DSIMDJSON_SANITIZE=ON
   commands:
     - apt-get update -qq
     - apt-get install -y cmake
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_SANITIZE=ON $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ASAN_OPTIONS="detect_leaks=0" ctest --output-on-failure
 
@@ -348,12 +478,13 @@ steps:
   environment:
     CC: clang
     CXX: clang++
+    CMAKE_FLAGS: -DSIMDJSON_SANITIZE=ON
   commands:
     - apt-get update -y
-    - apt-get install -y make $CC g++ cmake 
+    - apt-get install -y make $CC g++ cmake git
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_SANITIZE=ON $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ASAN_OPTIONS="detect_leaks=0" ctest --output-on-failure
 ---
@@ -366,16 +497,17 @@ platform:
 
 steps:
 - name: Build and Test
-  image: gcc:7
+  image: gcc:8
   environment:
     CC: gcc
     CXX: g++
+    CMAKE_FLAGS: -DSIMDJSON_SANITIZE=ON
   commands:
     - apt-get update -qq
     - apt-get install -y cmake
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_SANITIZE=ON $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ASAN_OPTIONS="detect_leaks=0" ctest --output-on-failure
 
@@ -393,12 +525,13 @@ steps:
   environment:
     CC: clang
     CXX: clang++
+    CMAKE_FLAGS: -DSIMDJSON_SANITIZE=ON -DSIMDJSON_IMPLEMENTATION_HASWELL=OFF
   commands:
     - apt-get update -qq
-    - apt-get install -y clang make cmake
+    - apt-get install -y clang make cmake git
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_SANITIZE=ON  -DSIMDJSON_DISABLE_AVX=ON $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ASAN_OPTIONS="detect_leaks=0" ctest --output-on-failure
 ---
@@ -411,15 +544,16 @@ platform:
 
 steps:
 - name: Build and Test
-  image: gcc:7
+  image: gcc:8
   environment:
     CC: gcc
     CXX: g++
+    CMAKE_FLAGS: -DSIMDJSON_SANITIZE=ON -DSIMDJSON_IMPLEMENTATION_HASWELL=OFF
   commands:
     - apt-get update -qq
     - apt-get install -y cmake
     - $CC --version
     - mkdir build && cd build
-    - cmake -DSIMDJSON_SANITIZE=ON -DSIMDJSON_DISABLE_AVX=ON $CMAKE_FLAGS ..
+    - cmake $CMAKE_FLAGS ..
     - make -j
     - ASAN_OPTIONS="detect_leaks=0" ctest --output-on-failure

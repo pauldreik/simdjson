@@ -1,9 +1,20 @@
 
-#include <cassert>
 #include <iostream>
 #include <limits>
 
-#include "simdjson/jsonparser.h"
+#include "simdjson.h"
+
+// we define our own asserts to get around NDEBUG
+#ifndef ASSERT
+#define ASSERT(x)                                                       \
+{    if (!(x)) {                                                        \
+        char buf[4096];                                                 \
+        snprintf (buf, 4096, "Failure in \"%s\", line %d\n",            \
+                 __FILE__, __LINE__);                                   \
+        abort ();                                                       \
+    }                                                                   \
+}
+#endif
 
 using namespace simdjson;
 
@@ -21,52 +32,42 @@ template <typename T>
 static void parse_and_validate(const std::string src, T expected) {
   std::cout << "src: " << src << ", ";
   const padded_string pstr{src};
-  auto json = build_parsed_json(pstr);
+  simdjson::dom::parser parser;
 
-  assert(json.is_valid());
-  ParsedJson::Iterator it{json};
-  assert(it.down());
-  assert(it.next());
   bool result;
   if constexpr (std::is_same<int64_t, T>::value) {
-    const auto actual = it.get_integer();
-    result = expected == actual;
+    auto [actual, error] = parser.parse(pstr).get<dom::object>()["key"].get<int64_t>();
+    if (error) { std::cerr << error << std::endl; abort(); }
+    result = (expected == actual);
   } else {
-    const auto actual = it.get_unsigned_integer();
-    result = expected == actual;
+    auto [actual, error] = parser.parse(pstr).get<dom::object>()["key"].get<uint64_t>();
+    if (error) { std::cerr << error << std::endl; abort(); }
+    result = (expected == actual);
   }
   std::cout << std::boolalpha << "test: " << result << std::endl;
   if(!result) {
-    std::cerr << "bug detected" << std::endl;   
-    throw std::runtime_error("bug");
+    std::cerr << "bug detected" << std::endl;
+    exit(EXIT_FAILURE);
   }
 }
 
 static bool parse_and_check_signed(const std::string src) {
   std::cout << "src: " << src << ", expecting signed" << std::endl;
   const padded_string pstr{src};
-  auto json = build_parsed_json(pstr);
-
-  assert(json.is_valid());
-  ParsedJson::Iterator it{json};
-  assert(it.down());
-  assert(it.next());
-  return it.is_integer() && it.is_number();
+  simdjson::dom::parser parser;
+  auto [value, error] = parser.parse(pstr).get<dom::object>()["key"];
+  if (error) { std::cerr << error << std::endl; abort(); }
+  return value.is<int64_t>();
 }
 
 static bool parse_and_check_unsigned(const std::string src) {
-  std::cout << "src: " << src << ", expecting unsigned" << std::endl;
+  std::cout << "src: " << src << ", expecting signed" << std::endl;
   const padded_string pstr{src};
-  auto json = build_parsed_json(pstr);
-
-  assert(json.is_valid());
-  ParsedJson::Iterator it{json};
-  assert(it.down());
-  assert(it.next());
-  return it.is_unsigned_integer() && it.is_number();
+  simdjson::dom::parser parser;
+  auto [value, error] = parser.parse(pstr).get<dom::object>()["key"];
+  if (error) { std::cerr << error << std::endl; abort(); }
+  return value.is<uint64_t>();
 }
-
-
 
 int main() {
   using std::numeric_limits;

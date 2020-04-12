@@ -1,11 +1,8 @@
 #ifndef SIMDJSON_WESTMERE_BITMASK_H
 #define SIMDJSON_WESTMERE_BITMASK_H
 
-#include "simdjson/portability.h"
-
-#ifdef IS_X86_64
-
-#include "simdjson/common_defs.h"
+#include "simdjson.h"
+#include "westmere/intrinsics.h"
 
 TARGET_WESTMERE
 namespace simdjson::westmere {
@@ -26,5 +23,4 @@ really_inline uint64_t prefix_xor(const uint64_t bitmask) {
 } // namespace simdjson::westmere
 UNTARGET_REGION
 
-#endif // IS_X86_64
-#endif
+#endif // SIMDJSON_WESTMERE_BITMASK_H

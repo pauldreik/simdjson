@@ -1,12 +1,10 @@
 #ifndef SIMDJSON_ARM64_SIMD_H
 #define SIMDJSON_ARM64_SIMD_H
 
-#include "simdjson/portability.h"
-
-#ifdef IS_ARM64
-
-#include "simdjson/common_defs.h"
-#include "simdjson/simdjson.h"
+#include "simdjson.h"
+#include "simdprune_tables.h"
+#include "arm64/bitmanipulation.h"
+#include "arm64/intrinsics.h"
 
 namespace simdjson::arm64::simd {
 
@@ -106,7 +104,7 @@ namespace simdjson::arm64::simd {
     }
 
     // Store to array
-    really_inline void store(uint8_t dst[16]) { return vst1q_u8(dst, *this); }
+    really_inline void store(uint8_t dst[16]) const { return vst1q_u8(dst, *this); }
 
     // Saturated math
     really_inline simd8<uint8_t> saturating_add(const simd8<uint8_t> other) const { return vqaddq_u8(*this, other); }
@@ -119,15 +117,22 @@ namespace simdjson::arm64::simd {
     really_inline simd8<uint8_t>& operator-=(const simd8<uint8_t> other) { *this = *this - other; return *this; }
 
     // Order-specific operations
+    really_inline uint8_t max() const { return vmaxvq_u8(*this); }
+    really_inline uint8_t min() const { return vminvq_u8(*this); }
     really_inline simd8<uint8_t> max(const simd8<uint8_t> other) const { return vmaxq_u8(*this, other); }
     really_inline simd8<uint8_t> min(const simd8<uint8_t> other) const { return vminq_u8(*this, other); }
     really_inline simd8<bool> operator<=(const simd8<uint8_t> other) const { return vcleq_u8(*this, other); }
     really_inline simd8<bool> operator>=(const simd8<uint8_t> other) const { return vcgeq_u8(*this, other); }
+    really_inline simd8<bool> operator<(const simd8<uint8_t> other) const { return vcltq_u8(*this, other); }
     really_inline simd8<bool> operator>(const simd8<uint8_t> other) const { return vcgtq_u8(*this, other); }
+    // Same as >, but instead of guaranteeing all 1's == true, false = 0 and true = nonzero. For ARM, returns all 1's.
+    really_inline simd8<uint8_t> gt_bits(const simd8<uint8_t> other) const { return simd8<uint8_t>(*this > other); }
+    // Same as <, but instead of guaranteeing all 1's == true, false = 0 and true = nonzero. For ARM, returns all 1's.
+    really_inline simd8<uint8_t> lt_bits(const simd8<uint8_t> other) const { return simd8<uint8_t>(*this < other); }
 
     // Bit-specific operations
     really_inline simd8<bool> any_bits_set(simd8<uint8_t> bits) const { return vtstq_u8(*this, bits); }
-    really_inline bool any_bits_set_anywhere() const { return vmaxvq_u8(*this) != 0; }
+    really_inline bool any_bits_set_anywhere() const { return this->max() != 0; }
     really_inline bool any_bits_set_anywhere(simd8<uint8_t> bits) const { return (*this & bits).any_bits_set_anywhere(); }
     template<int N>
     really_inline simd8<uint8_t> shr() const { return vshrq_n_u8(*this, N); }
@@ -139,6 +144,43 @@ namespace simdjson::arm64::simd {
     really_inline simd8<L> lookup_16(simd8<L> lookup_table) const {
       return lookup_table.apply_lookup_16_to(*this);
     }
+
+
+    // Copies to 'output" all bytes corresponding to a 0 in the mask (interpreted as a bitset).
+    // Passing a 0 value for mask would be equivalent to writing out every byte to output.
+    // Only the first 16 - count_ones(mask) bytes of the result are significant but 16 bytes
+    // get written.
+    // Design consideration: it seems like a function with the
+    // signature simd8<L> compress(uint16_t mask) would be
+    // sensible, but the AVX ISA makes this kind of approach difficult.
+    template<typename L>
+    really_inline void compress(uint16_t mask, L * output) const {
+      // this particular implementation was inspired by work done by @animetosho
+      // we do it in two steps, first 8 bytes and then second 8 bytes
+      uint8_t mask1 = static_cast<uint8_t>(mask); // least significant 8 bits
+      uint8_t mask2 = static_cast<uint8_t>(mask >> 8); // most significant 8 bits
+      // next line just loads the 64-bit values thintable_epi8[mask1] and
+      // thintable_epi8[mask2] into a 128-bit register, using only
+      // two instructions on most compilers.
+      uint64x2_t shufmask64 = {thintable_epi8[mask1], thintable_epi8[mask2]};
+      uint8x16_t shufmask = vreinterpretq_u8_u64(shufmask64);
+      // we increment by 0x08 the second half of the mask
+      uint8x16_t inc = {0, 0, 0, 0, 0, 0, 0, 0, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08};
+      shufmask = vaddq_u8(shufmask, inc);
+      // this is the version "nearly pruned"
+      uint8x16_t pruned = vqtbl1q_u8(*this, shufmask);
+      // we still need to put the two halves together.
+      // we compute the popcount of the first half:
+      int pop1 = BitsSetTable256mul2[mask1];
+      // then load the corresponding mask, what it does is to write
+      // only the first pop1 bytes from the first 8 bytes, and then
+      // it fills in with the bytes from the second 8 bytes + some filling
+      // at the end.
+      uint8x16_t compactmask = vld1q_u8((const uint8_t *)(pshufb_combine_table + pop1 * 8));
+      uint8x16_t answer = vqtbl1q_u8(pruned, compactmask);
+      vst1q_u8((uint8_t*) output, answer);
+    }
+
     template<typename L>
     really_inline simd8<L> lookup_16(
         L replace0,  L replace1,  L replace2,  L replace3,
@@ -199,7 +241,7 @@ namespace simdjson::arm64::simd {
     }
 
     // Store to array
-    really_inline void store(int8_t dst[16]) { return vst1q_s8(dst, *this); }
+    really_inline void store(int8_t dst[16]) const { return vst1q_s8(dst, *this); }
 
     // Explicit conversion to/from unsigned
     really_inline explicit simd8(const uint8x16_t other): simd8(vreinterpretq_s8_u8(other)) {}
@@ -215,6 +257,7 @@ namespace simdjson::arm64::simd {
     really_inline simd8<int8_t> max(const simd8<int8_t> other) const { return vmaxq_s8(*this, other); }
     really_inline simd8<int8_t> min(const simd8<int8_t> other) const { return vminq_s8(*this, other); }
     really_inline simd8<bool> operator>(const simd8<int8_t> other) const { return vcgtq_s8(*this, other); }
+    really_inline simd8<bool> operator<(const simd8<int8_t> other) const { return vcltq_s8(*this, other); }
     really_inline simd8<bool> operator==(const simd8<int8_t> other) const { return vceqq_s8(*this, other); }
 
     template<int N=1>
@@ -256,11 +299,18 @@ namespace simdjson::arm64::simd {
     really_inline simd8x64(const simd8<T> chunk0, const simd8<T> chunk1, const simd8<T> chunk2, const simd8<T> chunk3) : chunks{chunk0, chunk1, chunk2, chunk3} {}
     really_inline simd8x64(const T ptr[64]) : chunks{simd8<T>::load(ptr), simd8<T>::load(ptr+16), simd8<T>::load(ptr+32), simd8<T>::load(ptr+48)} {}
 
-    really_inline void store(T ptr[64]) {
+    really_inline void store(T ptr[64]) const {
       this->chunks[0].store(ptr+sizeof(simd8<T>)*0);
       this->chunks[1].store(ptr+sizeof(simd8<T>)*1);
       this->chunks[2].store(ptr+sizeof(simd8<T>)*2);
       this->chunks[3].store(ptr+sizeof(simd8<T>)*3);
+    }
+
+    really_inline void compress(uint64_t mask, T * output) const {
+      this->chunks[0].compress(mask, output);
+      this->chunks[1].compress(mask >> 16, output + 16 - count_ones(mask & 0xFFFF));
+      this->chunks[2].compress(mask >> 32, output + 32 - count_ones(mask & 0xFFFFFFFF));
+      this->chunks[3].compress(mask >> 48, output + 48 - count_ones(mask & 0xFFFFFFFFFFFF));
     }
 
     template <typename F>
@@ -323,22 +373,20 @@ namespace simdjson::arm64::simd {
 
     really_inline simd8x64<T> bit_or(const T m) const {
       const simd8<T> mask = simd8<T>::splat(m);
-      return this->map( [&](auto a) { return a | mask; } );
+      return this->map( [&](simd8<T> a) { return a | mask; } );
     }
 
     really_inline uint64_t eq(const T m) const {
       const simd8<T> mask = simd8<T>::splat(m);
-      return this->map( [&](auto a) { return a == mask; } ).to_bitmask();
+      return this->map( [&](simd8<T> a) { return a == mask; } ).to_bitmask();
     }
 
     really_inline uint64_t lteq(const T m) const {
       const simd8<T> mask = simd8<T>::splat(m);
-      return this->map( [&](auto a) { return a <= mask; } ).to_bitmask();
+      return this->map( [&](simd8<T> a) { return a <= mask; } ).to_bitmask();
     }
-
   }; // struct simd8x64<T>
 
 } // namespace simdjson::arm64::simd
 
-#endif // IS_ARM64
 #endif // SIMDJSON_ARM64_SIMD_H

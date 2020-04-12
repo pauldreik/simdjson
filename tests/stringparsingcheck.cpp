@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <cassert>
 #include <climits>
 #include <cstring>
 #include <dirent.h>
@@ -13,7 +13,7 @@
 #define JSON_TEST_STRINGS
 #endif
 
-#include "simdjson/common_defs.h"
+#include "simdjson.h"
 
 char *fullpath;
 
@@ -289,8 +289,8 @@ void found_string(const uint8_t *buf, const uint8_t *parsed_begin,
   }
 }
 
-#include "simdjson/jsonparser.h"
-#include "src/stage2_build_tape.cpp"
+#include "simdjson.h"
+#include "simdjson.cpp"
 
 /**
  * Does the file filename ends with the given extension.
@@ -333,18 +333,10 @@ bool validate(const char *dirname) {
       } else {
         strcpy(fullpath + dirlen, name);
       }
-      simdjson::padded_string p;
-      try {
-        simdjson::get_corpus(fullpath).swap(p);
-      } catch (const std::exception &e) {
-        std::cout << "Could not load the file " << fullpath << std::endl;
+      auto [p, error] = simdjson::padded_string::load(fullpath);
+      if (error) {
+        std::cerr << "Could not load the file " << fullpath << std::endl;
         return EXIT_FAILURE;
-      }
-      simdjson::ParsedJson pj;
-      bool allocok = pj.allocate_capacity(p.size(), 1024);
-      if (!allocok) {
-        std::cerr << "can't allocate memory" << std::endl;
-        return false;
       }
       big_buffer = (char *)malloc(p.size());
       if (big_buffer == NULL) {
@@ -355,7 +347,9 @@ bool validate(const char *dirname) {
       good_string = 0;
       total_string_length = 0;
       empty_string = 0;
-      bool isok = json_parse(p, pj);
+      simdjson::dom::parser parser;
+      auto [doc, err] = parser.parse(p);
+      bool isok = (err == simdjson::error_code::SUCCESS);
       free(big_buffer);
       if (good_string > 0) {
         printf("File %40s %s --- bad strings: %10zu \tgood strings: %10zu\t "

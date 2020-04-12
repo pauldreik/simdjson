@@ -1,11 +1,10 @@
 #ifndef SIMDJSON_HASWELL_SIMD_H
 #define SIMDJSON_HASWELL_SIMD_H
 
-#include "simdjson/portability.h"
-
-#ifdef IS_X86_64
-
-#include "simdjson/common_defs.h"
+#include "simdjson.h"
+#include "simdprune_tables.h"
+#include "haswell/bitmanipulation.h"
+#include "haswell/intrinsics.h"
 
 TARGET_HASWELL
 namespace simdjson::haswell::simd {
@@ -29,8 +28,7 @@ namespace simdjson::haswell::simd {
     really_inline Child operator|(const Child other) const { return _mm256_or_si256(*this, other); }
     really_inline Child operator&(const Child other) const { return _mm256_and_si256(*this, other); }
     really_inline Child operator^(const Child other) const { return _mm256_xor_si256(*this, other); }
-    really_inline Child bit_andnot(const Child other) const { return _mm256_andnot_si256(*this, other); }
-    really_inline Child operator~() const { return *this ^ 0xFFu; }
+    really_inline Child bit_andnot(const Child other) const { return _mm256_andnot_si256(other, *this); }
     really_inline Child& operator|=(const Child other) { auto this_cast = (Child*)this; *this_cast = *this_cast | other; return *this_cast; }
     really_inline Child& operator&=(const Child other) { auto this_cast = (Child*)this; *this_cast = *this_cast & other; return *this_cast; }
     really_inline Child& operator^=(const Child other) { auto this_cast = (Child*)this; *this_cast = *this_cast ^ other; return *this_cast; }
@@ -70,6 +68,7 @@ namespace simdjson::haswell::simd {
 
     really_inline int to_bitmask() const { return _mm256_movemask_epi8(*this); }
     really_inline bool any() const { return !_mm256_testz_si256(*this, *this); }
+    really_inline simd8<bool> operator~() const { return *this ^ true; }
   };
 
   template<typename T>
@@ -96,7 +95,7 @@ namespace simdjson::haswell::simd {
     really_inline base8_numeric(const __m256i _value) : base8<T>(_value) {}
 
     // Store to array
-    really_inline void store(T dst[32]) { return _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst), *this); }
+    really_inline void store(T dst[32]) const { return _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst), *this); }
 
     // Addition/subtraction are the same for signed and unsigned
     really_inline simd8<T> operator+(const simd8<T> other) const { return _mm256_add_epi8(*this, other); }
@@ -104,11 +103,65 @@ namespace simdjson::haswell::simd {
     really_inline simd8<T>& operator+=(const simd8<T> other) { *this = *this + other; return *(simd8<T>*)this; }
     really_inline simd8<T>& operator-=(const simd8<T> other) { *this = *this - other; return *(simd8<T>*)this; }
 
+    // Override to distinguish from bool version
+    really_inline simd8<T> operator~() const { return *this ^ 0xFFu; }
+
     // Perform a lookup assuming the value is between 0 and 16 (undefined behavior for out of range values)
     template<typename L>
     really_inline simd8<L> lookup_16(simd8<L> lookup_table) const {
       return _mm256_shuffle_epi8(lookup_table, *this);
     }
+
+    // Copies to 'output" all bytes corresponding to a 0 in the mask (interpreted as a bitset).
+    // Passing a 0 value for mask would be equivalent to writing out every byte to output.
+    // Only the first 32 - count_ones(mask) bytes of the result are significant but 32 bytes
+    // get written.
+    // Design consideration: it seems like a function with the
+    // signature simd8<L> compress(uint32_t mask) would be
+    // sensible, but the AVX ISA makes this kind of approach difficult.
+    template<typename L>
+    really_inline void compress(uint32_t mask, L * output) const {
+      // this particular implementation was inspired by work done by @animetosho
+      // we do it in four steps, first 8 bytes and then second 8 bytes...
+      uint8_t mask1 = static_cast<uint8_t>(mask); // least significant 8 bits
+      uint8_t mask2 = static_cast<uint8_t>(mask >> 8); // second least significant 8 bits
+      uint8_t mask3 = static_cast<uint8_t>(mask >> 16); // ...
+      uint8_t mask4 = static_cast<uint8_t>(mask >> 24); // ...
+      // next line just loads the 64-bit values thintable_epi8[mask1] and
+      // thintable_epi8[mask2] into a 128-bit register, using only
+      // two instructions on most compilers.
+      __m256i shufmask =  _mm256_set_epi64x(thintable_epi8[mask4], thintable_epi8[mask3], 
+        thintable_epi8[mask2], thintable_epi8[mask1]);
+      // we increment by 0x08 the second half of the mask and so forth
+      shufmask =
+      _mm256_add_epi8(shufmask, _mm256_set_epi32(0x18181818, 0x18181818, 
+         0x10101010, 0x10101010, 0x08080808, 0x08080808, 0, 0));
+      // this is the version "nearly pruned"
+      __m256i pruned = _mm256_shuffle_epi8(*this, shufmask);
+      // we still need to put the  pieces back together.
+      // we compute the popcount of the first words:
+      int pop1 = BitsSetTable256mul2[mask1];
+      int pop3 = BitsSetTable256mul2[mask3];
+
+      // then load the corresponding mask
+      // could be done with _mm256_loadu2_m128i but many standard libraries omit this intrinsic.
+      __m256i v256 = _mm256_castsi128_si256(
+        _mm_loadu_si128((const __m128i *)(pshufb_combine_table + pop1 * 8)));
+      __m256i compactmask = _mm256_insertf128_si256(v256,
+         _mm_loadu_si128((const __m128i *)(pshufb_combine_table + pop3 * 8)), 1);
+      __m256i almostthere =  _mm256_shuffle_epi8(pruned, compactmask);
+      // We just need to write out the result.
+      // This is the tricky bit that is hard to do
+      // if we want to return a SIMD register, since there
+      // is no single-instruction approach to recombine
+      // the two 128-bit lanes with an offset.
+      __m128i v128;
+      v128 = _mm256_castsi256_si128(almostthere);
+      _mm_storeu_si128( (__m128i *)output, v128);
+      v128 = _mm256_extractf128_si256(almostthere, 1);
+      _mm_storeu_si128( (__m128i *)(output + 16 - count_ones(mask & 0xFFFF)), v128);
+    }
+
     template<typename L>
     really_inline simd8<L> lookup_16(
         L replace0,  L replace1,  L replace2,  L replace3,
@@ -162,6 +215,7 @@ namespace simdjson::haswell::simd {
     really_inline simd8<int8_t> max(const simd8<int8_t> other) const { return _mm256_max_epi8(*this, other); }
     really_inline simd8<int8_t> min(const simd8<int8_t> other) const { return _mm256_min_epi8(*this, other); }
     really_inline simd8<bool> operator>(const simd8<int8_t> other) const { return _mm256_cmpgt_epi8(*this, other); }
+    really_inline simd8<bool> operator<(const simd8<int8_t> other) const { return _mm256_cmpgt_epi8(other, *this); }
   };
 
   // Unsigned bytes
@@ -204,14 +258,21 @@ namespace simdjson::haswell::simd {
 
     // Order-specific operations
     really_inline simd8<uint8_t> max(const simd8<uint8_t> other) const { return _mm256_max_epu8(*this, other); }
-    really_inline simd8<uint8_t> min(const simd8<uint8_t> other) const { return _mm256_min_epu8(*this, other); }
+    really_inline simd8<uint8_t> min(const simd8<uint8_t> other) const { return _mm256_min_epu8(other, *this); }
+    // Same as >, but only guarantees true is nonzero (< guarantees true = -1)
+    really_inline simd8<uint8_t> gt_bits(const simd8<uint8_t> other) const { return this->saturating_sub(other); }
+    // Same as <, but only guarantees true is nonzero (< guarantees true = -1)
+    really_inline simd8<uint8_t> lt_bits(const simd8<uint8_t> other) const { return other.saturating_sub(*this); }
     really_inline simd8<bool> operator<=(const simd8<uint8_t> other) const { return other.max(*this) == other; }
     really_inline simd8<bool> operator>=(const simd8<uint8_t> other) const { return other.min(*this) == other; }
-    really_inline simd8<bool> operator>(const simd8<uint8_t> other) const { return this->saturating_sub(other).any_bits_set(); }
+    really_inline simd8<bool> operator>(const simd8<uint8_t> other) const { return this->gt_bits(other).any_bits_set(); }
+    really_inline simd8<bool> operator<(const simd8<uint8_t> other) const { return this->lt_bits(other).any_bits_set(); }
 
     // Bit-specific operations
-    really_inline simd8<bool> any_bits_set() const { return ~(*this == uint8_t(0)); }
-    really_inline simd8<bool> any_bits_set(simd8<uint8_t> bits) const { return (*this & bits).any_bits_set(); }
+    really_inline simd8<bool> bits_not_set() const { return *this == uint8_t(0); }
+    really_inline simd8<bool> bits_not_set(simd8<uint8_t> bits) const { return (*this & bits).bits_not_set(); }
+    really_inline simd8<bool> any_bits_set() const { return ~this->bits_not_set(); }
+    really_inline simd8<bool> any_bits_set(simd8<uint8_t> bits) const { return ~this->bits_not_set(bits); }
     really_inline bool bits_not_set_anywhere() const { return _mm256_testz_si256(*this, *this); }
     really_inline bool any_bits_set_anywhere() const { return !bits_not_set_anywhere(); }
     really_inline bool bits_not_set_anywhere(simd8<uint8_t> bits) const { return _mm256_testz_si256(*this, bits); }
@@ -241,7 +302,14 @@ namespace simdjson::haswell::simd {
       each(1);
     }
 
-    really_inline void store(T ptr[64]) {
+    really_inline void compress(uint64_t mask, T * output) const {
+      uint32_t mask1 = static_cast<uint32_t>(mask);
+      uint32_t mask2 = static_cast<uint32_t>(mask >> 32);
+      this->chunks[0].compress(mask1, output);
+      this->chunks[1].compress(mask2, output + 32 - count_ones(mask1));
+    }
+
+    really_inline void store(T ptr[64]) const {
       this->chunks[0].store(ptr+sizeof(simd8<T>)*0);
       this->chunks[1].store(ptr+sizeof(simd8<T>)*1);
     }
@@ -260,6 +328,8 @@ namespace simdjson::haswell::simd {
         map_chunk(this->chunks[1])
       );
     }
+
+    
 
     template <typename R=bool, typename F>
     really_inline simd8x64<R> map(const simd8x64<uint8_t> b, F const& map_chunk) const {
@@ -282,23 +352,21 @@ namespace simdjson::haswell::simd {
 
     really_inline simd8x64<T> bit_or(const T m) const {
       const simd8<T> mask = simd8<T>::splat(m);
-      return this->map( [&](auto a) { return a | mask; } );
+      return this->map( [&](simd8<T> a) { return a | mask; } );
     }
 
     really_inline uint64_t eq(const T m) const {
       const simd8<T> mask = simd8<T>::splat(m);
-      return this->map( [&](auto a) { return a == mask; } ).to_bitmask();
+      return this->map( [&](simd8<T> a) { return a == mask; } ).to_bitmask();
     }
 
     really_inline uint64_t lteq(const T m) const {
       const simd8<T> mask = simd8<T>::splat(m);
-      return this->map( [&](auto a) { return a <= mask; } ).to_bitmask();
+      return this->map( [&](simd8<T> a) { return a <= mask; } ).to_bitmask();
     }
-
   }; // struct simd8x64<T>
 
 } // namespace simdjson::haswell::simd
 UNTARGET_REGION
 
-#endif // IS_X86_64
 #endif // SIMDJSON_HASWELL_SIMD_H
