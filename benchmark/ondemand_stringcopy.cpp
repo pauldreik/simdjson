@@ -1,3 +1,9 @@
+/*
+ * Benchmark for extracting string_views vs. string vs. raw json,
+ * see https://github.com/simdjson/simdjson/pull/1232#issuecomment-710263849
+ *
+ * By Paul Dreik 20201017, with some parts copied/adapted from Lemire's code.
+ */
 #include "simdjson.h"
 
 #include <iostream>
@@ -9,6 +15,7 @@ namespace od=simdjson::fallback::ondemand;
 
 size_t counter=0;
 
+// from https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/master/2020/08/08/test.cpp
 template <class T>
 __attribute__((noinline)) void do_not_optimize(const std::vector<T> &source) {
   counter += source.size();
@@ -55,10 +62,7 @@ std::vector<std::string_view> extract_stringviews(const simdjson::padded_string&
   auto doc=p.iterate(json);
   for(od::object object: doc[select]) {
     for(auto field : object)  {
-      // gets a string_view
       ret.emplace_back(field.key_as_string());
-      //gets a raw json string (supposed to be fast)
-      //auto keyraw = field.key();
     }
   }
   return ret;
@@ -71,11 +75,8 @@ std::vector<std::string> extract_strings(const simdjson::padded_string& json, co
   auto doc=p.iterate(json);
   for(od::object object: doc[select]) {
     for(auto field : object)  {
-      // gets a string_view
       std::string_view keyv = field.key_as_string();
       ret.emplace_back(keyv);
-      //gets a raw json string (supposed to be fast)
-      //auto keyraw = field.key();
     }
   }
   return ret;
@@ -84,7 +85,7 @@ std::vector<std::string> extract_strings(const simdjson::padded_string& json, co
 int main(int argc, char* argv[]) {
   auto json=simdjson::padded_string::load(argv[1]).take_value();
 
-  // for the twitter benchmark
+  // for twitter.json
   const char* select=argc>2?argv[2]:"statuses";
 
   {
