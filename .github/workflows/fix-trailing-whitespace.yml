@@ -20,12 +20,12 @@ jobs:
           else
              echo "no trailing whitespace found, good!"
           fi
-    - name: Archive whitespace patch
-      uses: actions/upload-artifact@v2
-      if: always()
-      with:
-        name: whitespace-patch
-        path: |
-          whitespace.patch
-        if-no-files-found: ignore
+      - name: Archive whitespace patch
+        uses: actions/upload-artifact@v2
+        if: always()
+        with:
+          name: whitespace-patch
+          path: |
+            whitespace.patch
+          if-no-files-found: ignore
 
