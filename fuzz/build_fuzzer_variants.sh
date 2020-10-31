@@ -21,12 +21,12 @@ variant=replay
 if [ ! -d build-$variant ] ; then
     mkdir build-$variant
     cd build-$variant
-    
+
     cmake .. \
 	  $COMMON \
 	  -DCMAKE_BUILD_TYPE=Debug \
 	  -DSIMDJSON_FUZZ_LINKMAIN=On
-    
+
     ninja all_fuzzers
     cd ..
 fi
@@ -36,10 +36,10 @@ fi
 variant=sanitizers
 
     if [ ! -d build-$variant ] ; then
-	
+
 	mkdir build-$variant
 	cd build-$variant
-	
+
 	cmake .. \
 	      $COMMON \
 	      -DCMAKE_CXX_FLAGS="-fsanitize=fuzzer-no-link,address,undefined -fno-sanitize-recover=undefined" \
@@ -47,7 +47,7 @@ variant=sanitizers
 	      -DCMAKE_BUILD_TYPE=Debug \
 	      -DSIMDJSON_FUZZ_LINKMAIN=Off \
 	      -DSIMDJSON_FUZZ_LDFLAGS="-fsanitize=fuzzer"
-	
+
 	ninja all_fuzzers
 	cd ..
     fi
@@ -57,10 +57,10 @@ variant=sanitizers
 # A fast fuzzer, for fast exploration rather than finding bugs.
 variant=fast
  if [ ! -d build-$variant ] ; then
-	
+
 	mkdir build-$variant
 	cd build-$variant
-	
+
 	cmake .. \
 	      $COMMON \
 	      -DCMAKE_CXX_FLAGS="-fsanitize=fuzzer-no-link" \
@@ -68,7 +68,7 @@ variant=fast
 	      -DCMAKE_BUILD_TYPE=Release \
 	      -DSIMDJSON_FUZZ_LINKMAIN=Off \
 	      -DSIMDJSON_FUZZ_LDFLAGS="-fsanitize=fuzzer"
-	
+
 	ninja all_fuzzers
 	cd ..
     fi

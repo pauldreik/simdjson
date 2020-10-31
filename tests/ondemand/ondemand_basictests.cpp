@@ -107,7 +107,7 @@ namespace key_string_tests {
   }
 #endif
   bool run() {
-    return 
+    return
 #if SIMDJSON_EXCEPTIONS
       parser_key_value() &&
 #endif
@@ -126,7 +126,7 @@ namespace active_tests {
     ondemand::object parent = doc["parent"];
     {
       ondemand::object c1 = parent["child1"];
-      if(std::string_view(c1["name"]) != "John") { return false; } 
+      if(std::string_view(c1["name"]) != "John") { return false; }
     }
     {
       ondemand::object c2 = parent["child2"];
@@ -163,7 +163,7 @@ namespace active_tests {
   }
 #endif
   bool run() {
-    return 
+    return
 #if SIMDJSON_EXCEPTIONS
       parser_child() &&
       parser_doc_correct() &&
@@ -800,7 +800,7 @@ namespace ordering_tests {
       y += double(point_object["y"]);
       z += double(point_object["z"]);
     }
-    return (x == 1.1) && (y == 2.2) && (z == 3.3); 
+    return (x == 1.1) && (y == 2.2) && (z == 3.3);
   }
 
   bool out_of_order() {
@@ -821,7 +821,7 @@ namespace ordering_tests {
         return false;
       } catch(simdjson_error&) {}
     }
-    return (x == 0) && (y == 0) && (z == 3.3);     
+    return (x == 0) && (y == 0) && (z == 3.3);
   }
 
   bool robust_order() {
@@ -838,7 +838,7 @@ namespace ordering_tests {
         else if (field.key() == "y") { y += double(field.value()); }
       }
     }
-    return (x == 1.1) && (y == 2.2) && (z == 3.3);     
+    return (x == 1.1) && (y == 2.2) && (z == 3.3);
   }
 #endif
 
