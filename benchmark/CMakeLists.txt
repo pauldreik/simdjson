@@ -1,6 +1,14 @@
 include_directories( . linux )
-link_libraries(simdjson)
-# add_executable(benchfeatures benchfeatures.cpp)
+link_libraries(simdjson-windows-headers test-data)
+
+
+if (TARGET benchmark::benchmark)
+  add_executable(bench_sax bench_sax.cpp)
+  target_link_libraries(bench_sax simdjson-internal-flags simdjson-include-source benchmark::benchmark)
+endif (TARGET benchmark::benchmark)
+
+link_libraries(simdjson simdjson-flags)
+add_executable(benchfeatures benchfeatures.cpp)
 add_executable(get_corpus_benchmark get_corpus_benchmark.cpp)
 add_executable(perfdiff perfdiff.cpp)
 add_executable(parse parse.cpp)
@@ -14,23 +22,29 @@ target_compile_definitions(parse_nonumberparsing PRIVATE SIMDJSON_SKIPNUMBERPARS
 add_executable(parse_nostringparsing parse.cpp)
 target_compile_definitions(parse_nostringparsing PRIVATE SIMDJSON_SKIPSTRINGPARSING)
 
-if (SIMDJSON_GOOGLE_BENCHMARKS)
-  link_libraries(benchmark::benchmark)
-  add_executable(bench_parse_call bench_parse_call.cpp)
-  add_executable(bench_dom_api bench_dom_api.cpp)
-  target_link_libraries(bench_dom_api test-data)
-endif()
-
-if (SIMDJSON_COMPETITION)
+if (TARGET competition-all)
   add_executable(distinctuseridcompetition distinctuseridcompetition.cpp)
   target_link_libraries(distinctuseridcompetition competition-core)
+
   add_executable(minifiercompetition minifiercompetition.cpp)
   target_link_libraries(minifiercompetition competition-core)
+
   add_executable(parseandstatcompetition parseandstatcompetition.cpp)
   target_link_libraries(parseandstatcompetition competition-core)
+
   add_executable(parsingcompetition parsingcompetition.cpp)
   target_link_libraries(parsingcompetition competition-core)
+
   add_executable(allparsingcompetition parsingcompetition.cpp)
   target_link_libraries(allparsingcompetition competition-all)
   target_compile_definitions(allparsingcompetition PRIVATE ALLPARSER)
 endif()
+
+if (TARGET benchmark::benchmark)
+  link_libraries(benchmark::benchmark)
+  add_executable(bench_parse_call bench_parse_call.cpp)
+  add_executable(bench_dom_api bench_dom_api.cpp)
+  add_executable(bench_ondemand bench_ondemand.cpp)
+endif()
+
+include(checkperf.cmake)

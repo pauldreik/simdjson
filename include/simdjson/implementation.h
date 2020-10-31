@@ -1,13 +1,48 @@
 #ifndef SIMDJSON_IMPLEMENTATION_H
 #define SIMDJSON_IMPLEMENTATION_H
 
-#include <optional>
+#include "simdjson/common_defs.h"
+#include "simdjson/internal/dom_parser_implementation.h"
+#include "simdjson/internal/isadetection.h"
 #include <string>
 #include <atomic>
 #include <vector>
-#include "simdjson/document.h"
 
 namespace simdjson {
+
+/**
+ * Validate the UTF-8 string.
+ *
+ * @param buf the string to validate.
+ * @param len the length of the string in bytes.
+ * @return true if the string is valid UTF-8.
+ */
+simdjson_warn_unused bool validate_utf8(const char * buf, size_t len) noexcept;
+
+
+/**
+ * Validate the UTF-8 string.
+ *
+ * @param sv the string_view to validate.
+ * @return true if the string is valid UTF-8.
+ */
+simdjson_really_inline simdjson_warn_unused bool validate_utf8(const std::string_view sv) noexcept {
+  return validate_utf8(sv.data(), sv.size());
+}
+
+/**
+ * Validate the UTF-8 string.
+ *
+ * @param p the string to validate.
+ * @return true if the string is valid UTF-8.
+ */
+simdjson_really_inline simdjson_warn_unused bool validate_utf8(const std::string& s) noexcept {
+  return validate_utf8(s.data(), s.size());
+}
+
+namespace dom {
+  class document;
+} // namespace dom
 
 /**
  * An implementation of simdjson for a particular CPU architecture.
@@ -17,6 +52,7 @@ namespace simdjson {
  */
 class implementation {
 public:
+
   /**
    * The name of this implementation.
    *
@@ -38,90 +74,71 @@ public:
   virtual const std::string &description() const { return _description; }
 
   /**
+   * The instruction sets this implementation is compiled against
+   * and the current CPU match. This function may poll the current CPU/system
+   * and should therefore not be called too often if performance is a concern.
+   *
+   *
+   * @return true if the implementation can be safely used on the current system (determined at runtime)
+   */
+  bool supported_by_runtime_system() const;
+
+  /**
    * @private For internal implementation use
    *
    * The instruction sets this implementation is compiled against.
    *
-   * @return a mask of all required `instruction_set` values
+   * @return a mask of all required `internal::instruction_set::` values
    */
   virtual uint32_t required_instruction_sets() const { return _required_instruction_sets; };
 
   /**
    * @private For internal implementation use
    *
-   * Run a full document parse (ensure_capacity, stage1 and stage2).
+   *     const implementation *impl = simdjson::active_implementation;
+   *     cout << "simdjson is optimized for " << impl->name() << "(" << impl->description() << ")" << endl;
    *
-   * Overridden by each implementation.
-   *
-   * @param buf the json document to parse. *MUST* be allocated up to len + SIMDJSON_PADDING bytes.
-   * @param len the length of the json document.
-   * @param parser the parser with the buffers to use. *MUST* have allocated up to at least len capacity.
-   * @return the error code, or SUCCESS if there was no error.
+   * @param capacity The largest document that will be passed to the parser.
+   * @param max_depth The maximum JSON object/array nesting this parser is expected to handle.
+   * @param dst The place to put the resulting parser implementation.
+   * @return the name of the implementation, e.g. "haswell", "westmere", "arm64"
    */
-  WARN_UNUSED virtual error_code parse(const uint8_t *buf, size_t len, dom::parser &parser) const noexcept = 0;
+  virtual error_code create_dom_parser_implementation(
+    size_t capacity,
+    size_t max_depth,
+    std::unique_ptr<internal::dom_parser_implementation> &dst
+  ) const noexcept = 0;
 
   /**
    * @private For internal implementation use
    *
-   * Run a full document parse (ensure_capacity, stage1 and stage2).
+   * Minify the input string assuming that it represents a JSON string, does not parse or validate.
    *
    * Overridden by each implementation.
    *
-   * @param buf the json document to parse. *MUST* be allocated up to len + SIMDJSON_PADDING bytes.
+   * @param buf the json document to minify.
    * @param len the length of the json document.
    * @param dst the buffer to write the minified document to. *MUST* be allocated up to len + SIMDJSON_PADDING bytes.
    * @param dst_len the number of bytes written. Output only.
    * @return the error code, or SUCCESS if there was no error.
    */
-  WARN_UNUSED virtual error_code minify(const uint8_t *buf, size_t len, uint8_t *dst, size_t &dst_len) const noexcept = 0;
+  simdjson_warn_unused virtual error_code minify(const uint8_t *buf, size_t len, uint8_t *dst, size_t &dst_len) const noexcept = 0;
+
 
   /**
-   * @private For internal implementation use
-   *
-   * Stage 1 of the document parser.
+   * Validate the UTF-8 string.
    *
    * Overridden by each implementation.
    *
-   * @param buf the json document to parse. *MUST* be allocated up to len + SIMDJSON_PADDING bytes.
-   * @param len the length of the json document.
-   * @param parser the parser with the buffers to use. *MUST* have allocated up to at least len capacity.
-   * @param streaming whether this is being called by parser::parse_many.
-   * @return the error code, or SUCCESS if there was no error.
+   * @param buf the string to validate.
+   * @param len the length of the string in bytes.
+   * @return true if and only if the string is valid UTF-8.
    */
-  WARN_UNUSED virtual error_code stage1(const uint8_t *buf, size_t len, dom::parser &parser, bool streaming) const noexcept = 0;
-
-  /**
-   * @private For internal implementation use
-   *
-   * Stage 2 of the document parser.
-   *
-   * Overridden by each implementation.
-   *
-   * @param buf the json document to parse. *MUST* be allocated up to len + SIMDJSON_PADDING bytes.
-   * @param len the length of the json document.
-   * @param parser the parser with the buffers to use. *MUST* have allocated up to at least len capacity.
-   * @return the error code, or SUCCESS if there was no error.
-   */
-  WARN_UNUSED virtual error_code stage2(const uint8_t *buf, size_t len, dom::parser &parser) const noexcept = 0;
-
-  /**
-   * @private For internal implementation use
-   *
-   * Stage 2 of the document parser for parser::parse_many.
-   *
-   * Overridden by each implementation.
-   *
-   * @param buf the json document to parse. *MUST* be allocated up to len + SIMDJSON_PADDING bytes.
-   * @param len the length of the json document.
-   * @param parser the parser with the buffers to use. *MUST* have allocated up to at least len capacity.
-   * @param next_json the next structural index. Start this at 0 the first time, and it will be updated to the next value to pass each time.
-   * @return the error code, SUCCESS if there was no error, or SUCCESS_AND_HAS_MORE if there was no error and stage2 can be called again.
-   */
-  WARN_UNUSED virtual error_code stage2(const uint8_t *buf, size_t len, dom::parser &parser, size_t &next_json) const noexcept = 0;
+  simdjson_warn_unused virtual bool validate_utf8(const char *buf, size_t len) const noexcept = 0;
 
 protected:
   /** @private Construct an implementation with the given name and description. For subclasses. */
-  really_inline implementation(
+  simdjson_really_inline implementation(
     std::string_view name,
     std::string_view description,
     uint32_t required_instruction_sets
@@ -131,6 +148,7 @@ protected:
     _required_instruction_sets(required_instruction_sets)
   {
   }
+  virtual ~implementation()=default;
 
 private:
   /**
@@ -158,7 +176,7 @@ namespace internal {
 class available_implementation_list {
 public:
   /** Get the list of available implementations compiled into simdjson */
-  really_inline available_implementation_list() {}
+  simdjson_really_inline available_implementation_list() {}
   /** Number of implementations */
   size_t size() const noexcept;
   /** STL const begin() iterator */
@@ -173,6 +191,7 @@ public:
    *
    *     const implementation *impl = simdjson::available_implementations["westmere"];
    *     if (!impl) { exit(1); }
+   *     if (!imp->supported_by_runtime_system()) { exit(1); }
    *     simdjson::active_implementation = impl;
    *
    * @param name the implementation to find, e.g. "westmere", "haswell", "arm64"
@@ -212,13 +231,13 @@ public:
   operator T*() { return ptr.load(); }
   T& operator*() { return *ptr; }
   T* operator->() { return ptr.load(); }
-  T* operator=(T *_ptr) { return ptr = _ptr; }
+  atomic_ptr& operator=(T *_ptr) { ptr = _ptr; return *this; }
 
 private:
   std::atomic<T*> ptr;
 };
 
-} // namespace [simdjson::]internal
+} // namespace internal
 
 /**
  * The list of available implementations compiled into simdjson.

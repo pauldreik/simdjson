@@ -5,8 +5,8 @@
 #include <cctype>
 #ifndef _MSC_VER
 #include <dirent.h>
-#include <unistd.h>
 #endif
+#include <unistd.h>
 #include <cinttypes>
 
 #include <cstdio>
@@ -56,11 +56,11 @@ struct event_count {
 
   double elapsed_sec() const { return duration<double>(elapsed).count(); }
   double elapsed_ns() const { return duration<double, std::nano>(elapsed).count(); }
-  double cycles() const { return event_counts[CPU_CYCLES]; }
-  double instructions() const { return event_counts[INSTRUCTIONS]; }
-  double branch_misses() const { return event_counts[BRANCH_MISSES]; }
-  double cache_references() const { return event_counts[CACHE_REFERENCES]; }
-  double cache_misses() const { return event_counts[CACHE_MISSES]; }
+  double cycles() const { return static_cast<double>(event_counts[CPU_CYCLES]); }
+  double instructions() const { return static_cast<double>(event_counts[INSTRUCTIONS]); }
+  double branch_misses() const { return static_cast<double>(event_counts[BRANCH_MISSES]); }
+  double cache_references() const { return static_cast<double>(event_counts[CACHE_REFERENCES]); }
+  double cache_misses() const { return static_cast<double>(event_counts[CACHE_MISSES]); }
 
   event_count& operator=(const event_count& other) {
     this->elapsed = other.elapsed;
@@ -84,9 +84,9 @@ struct event_count {
 
 struct event_aggregate {
   int iterations = 0;
-  event_count total;
-  event_count best;
-  event_count worst;
+  event_count total{};
+  event_count best{};
+  event_count worst{};
 
   event_aggregate() {}
 
@@ -111,35 +111,35 @@ struct event_aggregate {
 };
 
 struct event_collector {
-  event_count count;
-  time_point<steady_clock> start_clock;
+  event_count count{};
+  time_point<steady_clock> start_clock{};
 
 #if defined(__linux__)
   LinuxEvents<PERF_TYPE_HARDWARE> linux_events;
-  event_collector() : linux_events(vector<int>{
+  event_collector(bool quiet = false) : linux_events(vector<int>{
     PERF_COUNT_HW_CPU_CYCLES,
     PERF_COUNT_HW_INSTRUCTIONS,
     PERF_COUNT_HW_BRANCH_MISSES,
     PERF_COUNT_HW_CACHE_REFERENCES,
     PERF_COUNT_HW_CACHE_MISSES
-  }) {}
+  }, quiet) {}
   bool has_events() {
     return linux_events.is_working();
   }
 #else
-  event_collector() {}
+  event_collector(simdjson_unused bool _quiet = false) {}
   bool has_events() {
     return false;
   }
 #endif
 
-  really_inline void start() {
+  simdjson_really_inline void start() {
 #if defined(__linux)
     linux_events.start();
 #endif
     start_clock = steady_clock::now();
   }
-  really_inline event_count& end() {
+  simdjson_really_inline event_count& end() {
     time_point<steady_clock> end_clock = steady_clock::now();
 #if defined(__linux)
     linux_events.end(count.event_counts);

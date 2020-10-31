@@ -29,9 +29,10 @@ std::string exec(const char* cmd) {
     std::string result;
     std::unique_ptr<FILE, decltype(&closepipe)> pipe(popen(cmd, "r"), closepipe);
     if (!pipe) {
-        throw std::runtime_error("popen() failed!");
+        std::cerr << "popen() failed!" << std::endl;
+        abort();
     }
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+    while (fgets(buffer.data(), int(buffer.size()), pipe.get()) != nullptr) {
         result += buffer.data();
     }
     return result;
@@ -43,10 +44,10 @@ double readThroughput(std::string parseOutput) {
     double result = 0;
     int numResults = 0;
     while (std::getline(output, line)) {
-        int pos = 0;
+        std::string::size_type pos = 0;
         for (int i=0; i<5; i++) {
             pos = line.find('\t', pos);
-            if (pos < 0) {
+            if (pos == std::string::npos) {
                 std::cerr << "Command printed out a line with less than 5 fields in it:\n" << line << std::endl;
             }
             pos++;
@@ -63,23 +64,33 @@ double readThroughput(std::string parseOutput) {
 
 const double INTERLEAVED_ATTEMPTS = 7;
 
-int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        std::cerr << "Usage: " << argv[0] << " <new parse cmd> <reference parse cmd>" << std::endl;
+int main(int argc, const char *argv[]) {
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " <old parse exe> <new parse exe> [<parse arguments>]" << std::endl;
         return 1;
     }
+
+    std::string newCommand = argv[1];
+    std::string refCommand = argv[2];
+    for (int i=3; i<argc; i++) {
+        newCommand += " ";
+        newCommand += argv[i];
+        refCommand += " ";
+        refCommand += argv[i];
+    }
+
     std::vector<double> ref;
     std::vector<double> newcode;
     for (int attempt=0; attempt < INTERLEAVED_ATTEMPTS; attempt++) {
         std::cout << "Attempt #" << (attempt+1) << " of " << INTERLEAVED_ATTEMPTS << std::endl;
 
         // Read new throughput
-        double newThroughput = readThroughput(exec(argv[1]));
+        double newThroughput = readThroughput(exec(newCommand.c_str()));
         std::cout << "New throughput: " << newThroughput << std::endl;
         newcode.push_back(newThroughput);
 
         // Read reference throughput
-        double referenceThroughput = readThroughput(exec(argv[2]));
+        double referenceThroughput = readThroughput(exec(refCommand.c_str()));
         std::cout << "Ref throughput: " << referenceThroughput << std::endl;
         ref.push_back(referenceThroughput);
     }

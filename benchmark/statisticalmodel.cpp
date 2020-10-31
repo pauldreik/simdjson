@@ -1,7 +1,5 @@
 #include <iostream>
-#ifndef _MSC_VER
 #include <unistd.h>
-#endif
 #include "simdjson.h"
 #ifdef __linux__
 #include "linux-perf-events.h"
@@ -43,7 +41,7 @@ using stat_t = struct stat_s;
 
 
 
-really_inline void simdjson_process_atom(stat_t &s,
+simdjson_really_inline void simdjson_process_atom(stat_t &s,
                                          simdjson::dom::element element) {
   if (element.is<int64_t>()) {
     s.integer_count++;
@@ -52,7 +50,10 @@ really_inline void simdjson_process_atom(stat_t &s,
   } else if(element.is<double>()) {
     s.float_count++;
   } else if (element.is<bool>()) {
-    if (element.get<bool>()) {
+    simdjson::error_code err;
+    bool v;
+    err = element.get(v);
+    if (v) {
       s.true_count++;
     } else {
       s.false_count++;
@@ -63,9 +64,11 @@ really_inline void simdjson_process_atom(stat_t &s,
 }
 
 void simdjson_recurse(stat_t &s, simdjson::dom::element element) {
+  simdjson::error_code error;
   if (element.is<simdjson::dom::array>()) {
     s.array_count++;
-    auto [array, array_error] = element.get<simdjson::dom::array>();
+    simdjson::dom::array array;
+    if ((error = element.get(array))) { std::cerr << error << std::endl; abort(); }
     for (auto child : array) {
       if (child.is<simdjson::dom::array>() || child.is<simdjson::dom::object>()) {
         simdjson_recurse(s, child);
@@ -75,13 +78,14 @@ void simdjson_recurse(stat_t &s, simdjson::dom::element element) {
     }
   } else if (element.is<simdjson::dom::object>()) {
     s.object_count++;
-    auto [object, object_error] = element.get<simdjson::dom::object>();
-    for (auto [key, value] : object) {
+    simdjson::dom::object object;
+    if ((error = element.get(object))) { std::cerr << error << std::endl; abort(); }
+    for (auto field : object) {
       s.string_count++; // for key
-      if (value.is<simdjson::dom::array>() || value.is<simdjson::dom::object>()) {
-        simdjson_recurse(s, value);
+      if (field.value.is<simdjson::dom::array>() || field.value.is<simdjson::dom::object>()) {
+        simdjson_recurse(s, field.value);
       } else {
-        simdjson_process_atom(s, value);
+        simdjson_process_atom(s, field.value);
       }
     }
   } else {
@@ -92,7 +96,8 @@ void simdjson_recurse(stat_t &s, simdjson::dom::element element) {
 stat_t simdjson_compute_stats(const simdjson::padded_string &p) {
   stat_t answer{};
   simdjson::dom::parser parser;
-  auto [doc, error] = parser.parse(p);
+  simdjson::dom::element doc;
+  auto error = parser.parse(p).get(doc);
   if (error) {
     answer.valid = false;
     return answer;
@@ -103,7 +108,7 @@ stat_t simdjson_compute_stats(const simdjson::padded_string &p) {
   answer.non_ascii_byte_count = count_nonasciibytes(
       reinterpret_cast<const uint8_t *>(p.data()), p.size());
   answer.byte_count = p.size();
-  answer.structural_indexes_count = parser.n_structural_indexes;
+  answer.structural_indexes_count = parser.implementation->n_structural_indexes;
   simdjson_recurse(answer, doc);
   return answer;
 }
@@ -132,7 +137,8 @@ int main(int argc, char *argv[]) {
     std::cerr << "warning: ignoring everything after " << argv[optind + 1]
               << std::endl;
   }
-  auto [p, error] = simdjson::padded_string::load(filename);
+  simdjson::padded_string p;
+  auto error = simdjson::padded_string::load(filename).get(p);
   if (error) {
     std::cerr << "Could not load the file " << filename << std::endl;
     return EXIT_FAILURE;
@@ -160,7 +166,6 @@ int main(int argc, char *argv[]) {
          s.true_count, s.false_count, s.byte_count, s.structural_indexes_count);
 #ifdef __linux__
   simdjson::dom::parser parser;
-  const simdjson::implementation &stage_parser = *simdjson::active_implementation;
   simdjson::error_code alloc_error = parser.allocate(p.size());
   if (alloc_error) {
     std::cerr << alloc_error << std::endl;
@@ -178,14 +183,14 @@ int main(int argc, char *argv[]) {
   for (uint32_t i = 0; i < iterations; i++) {
     unified.start();
     // The default template is simdjson::architecture::NATIVE.
-    bool isok = (stage_parser.stage1((const uint8_t *)p.data(), p.size(), parser, false) == simdjson::SUCCESS);
+    bool isok = (parser.implementation->stage1((const uint8_t *)p.data(), p.size(), false) == simdjson::SUCCESS);
     unified.end(results);
 
     cy1 += results[0];
     cl1 += results[1];
 
     unified.start();
-    isok = isok && (stage_parser.stage2((const uint8_t *)p.data(), p.size(), parser) == simdjson::SUCCESS);
+    isok = isok && (parser.implementation->stage2(parser.doc) == simdjson::SUCCESS);
     unified.end(results);
 
     cy2 += results[0];
@@ -194,8 +199,8 @@ int main(int argc, char *argv[]) {
       std::cerr << "failure?" << std::endl;
     }
   }
-  printf("%f %f %f %f ", cy1 * 1.0 / iterations, cl1 * 1.0 / iterations,
-         cy2 * 1.0 / iterations, cl2 * 1.0 / iterations);
+  printf("%f %f %f %f ", static_cast<double>(cy1) / static_cast<double>(iterations), static_cast<double>(cl1) / static_cast<double>(iterations),
+         static_cast<double>(cy2) / static_cast<double>(iterations), static_cast<double>(cl2) / static_cast<double>(iterations));
 #endif // __linux__
   printf("\n");
   return EXIT_SUCCESS;

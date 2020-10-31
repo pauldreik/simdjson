@@ -3,58 +3,58 @@
 #include <cstdint>
 #include <iostream>
 #include <string>
+#include <string_view>
 
 #include "NullBuffer.h"
 
-// from the README on the front page
-void compute_dump(simdjson::ParsedJson::Iterator &pjh) {
-  NulOStream os;
-
-  if (pjh.is_object()) {
-    os << "{";
-    if (pjh.down()) {
-      pjh.print(os); // must be a string
-      os << ":";
-      pjh.next();
-      compute_dump(pjh); // let us recurse
-      while (pjh.next()) {
-        os << ",";
-        pjh.print(os);
-        os << ":";
-        pjh.next();
-        compute_dump(pjh); // let us recurse
-      }
-      pjh.up();
-    }
-    os << "}";
-  } else if (pjh.is_array()) {
+// example from doc/basics.md#tree-walking-and-json-element-types
+static void print_json(std::ostream& os, simdjson::dom::element element) {
+  const char endl='\n';
+  switch (element.type()) {
+  case simdjson::dom::element_type::ARRAY:
     os << "[";
-    if (pjh.down()) {
-      compute_dump(pjh); // let us recurse
-      while (pjh.next()) {
-        os << ",";
-        compute_dump(pjh); // let us recurse
-      }
-      pjh.up();
+    for (simdjson::dom::element child : element.get<simdjson::dom::array>().first) {
+      print_json(os, child);
+      os << ",";
     }
     os << "]";
-  } else {
-    pjh.print(os); // just print the lone value
+    break;
+  case simdjson::dom::element_type::OBJECT:
+    os << "{";
+    for (simdjson::dom::key_value_pair field : element.get<simdjson::dom::object>().first) {
+      os << "\"" << field.key << "\": ";
+      print_json(os, field.value);
+    }
+    os << "}";
+    break;
+  case simdjson::dom::element_type::INT64:
+    os << element.get<int64_t>().first << endl;
+    break;
+  case simdjson::dom::element_type::UINT64:
+    os << element.get<uint64_t>().first << endl;
+    break;
+  case simdjson::dom::element_type::DOUBLE:
+    os << element.get<double>().first << endl;
+    break;
+  case simdjson::dom::element_type::STRING:
+    os << element.get<std::string_view>().first << endl;
+    break;
+  case simdjson::dom::element_type::BOOL:
+    os << element.get<bool>().first << endl;
+    break;
+  case simdjson::dom::element_type::NULL_VALUE:
+    os << "null" << endl;
+    break;
   }
 }
-
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
+  simdjson::dom::parser parser;
+  simdjson::dom::element elem;
+  auto error = parser.parse(Data, Size).get(elem);
 
-  try {
-    auto pj = simdjson::build_parsed_json(Data, Size);
-    if (!pj.is_valid()) {
-      throw 1;
-    }
-    simdjson::ParsedJson::Iterator pjh(pj);
-    if (pjh.is_ok()) {
-      compute_dump(pjh);
-    }
-  } catch (...) {
-  }
+  if (error) { return 0; }
+  NulOStream os;
+  //std::ostream& os(std::cout);
+  print_json(os,elem);
   return 0;
 }

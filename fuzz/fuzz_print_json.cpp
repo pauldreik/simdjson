@@ -7,13 +7,12 @@
 
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
-
-  try {
-    auto pj = simdjson::build_parsed_json(Data, Size);
+  simdjson::dom::parser parser;
+  simdjson::dom::element elem;
+  auto error = parser.parse(Data, Size).get(elem);
+  if (!error) {
     NulOStream os;
-    bool ignored=pj.print_json(os);
-    (void)ignored;
-  } catch (...) {
+    os<<elem;
   }
   return 0;
 }

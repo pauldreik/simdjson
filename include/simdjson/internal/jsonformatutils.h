@@ -5,7 +5,8 @@
 #include <iostream>
 #include <sstream>
 
-namespace simdjson::internal {
+namespace simdjson {
+namespace internal {
 
 class escape_json_string;
 
@@ -48,7 +49,7 @@ inline std::ostream& operator<<(std::ostream& out, const escape_json_string &une
       if ((unsigned char)unescaped.str[i] <= 0x1F) {
         // TODO can this be done once at the beginning, or will it mess up << char?
         std::ios::fmtflags f(out.flags());
-        out << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<int>(unescaped.str[i]);
+        out << "\\u" << std::hex << std::setw(4) << std::setfill('0') << int(unescaped.str[i]);
         out.flags(f);
       } else {
         out << unescaped.str[i];
@@ -58,6 +59,7 @@ inline std::ostream& operator<<(std::ostream& out, const escape_json_string &une
   return out;
 }
 
-} // namespace simdjson::internal
+} // namespace internal
+} // namespace simdjson
 
 #endif // SIMDJSON_INTERNAL_JSONFORMATUTILS_H

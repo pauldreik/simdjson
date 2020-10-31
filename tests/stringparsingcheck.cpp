@@ -1,18 +1,21 @@
 #include <cassert>
 #include <climits>
 #include <cstring>
-#include <dirent.h>
-#include <inttypes.h>
+#include <cinttypes>
 #include <iostream>
-#include <math.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 
 #ifndef JSON_TEST_STRINGS
 #define JSON_TEST_STRINGS
 #endif
 
+#if (!(_MSC_VER) && !(__MINGW32__) && !(__MINGW64__))
+#include <dirent.h>
+#else
+#include <dirent_portable.h>
+#endif
 #include "simdjson.h"
 
 char *fullpath;
@@ -31,11 +34,11 @@ static inline bool read_hex(const char *p, unsigned &u) {
   while (i--) {
     unsigned char c = *p++;
     if (c >= '0' && c <= '9') {
-      c -= '0';
+      c = static_cast<unsigned char>(c - '0');
     } else if (c >= 'a' && c <= 'f') {
-      c = c - 'a' + 10;
+      c = static_cast<unsigned char>(c - 'a' + 10);
     } else if (c >= 'A' && c <= 'F') {
-      c = c - 'A' + 10;
+      c = static_cast<unsigned char>(c - 'A' + 10);
     } else {
       return false;
     }
@@ -48,20 +51,20 @@ static inline bool read_hex(const char *p, unsigned &u) {
 
 static inline void write_utf8(unsigned codepoint, char *&end) {
   if (codepoint < 0x80) {
-    *end++ = codepoint;
+    *end++ = static_cast<char>(codepoint);
   } else if (codepoint < 0x800) {
-    *end++ = 0xC0 | (codepoint >> 6);
-    *end++ = 0x80 | (codepoint & 0x3F);
+    *end++ = static_cast<char>(0xC0 | (codepoint >> 6));
+    *end++ = static_cast<char>(0x80 | (codepoint & 0x3F));
   } else if (codepoint < 0x10000) {
-    *end++ = 0xE0 | (codepoint >> 12);
-    *end++ = 0x80 | ((codepoint >> 6) & 0x3F);
-    *end++ = 0x80 | (codepoint & 0x3F);
+    *end++ = static_cast<char>(0xE0 | (codepoint >> 12));
+    *end++ = static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+    *end++ = static_cast<char>(0x80 | (codepoint & 0x3F));
   } else {
     assert(codepoint < 0x200000);
-    *end++ = 0xF0 | (codepoint >> 18);
-    *end++ = 0x80 | ((codepoint >> 12) & 0x3F);
-    *end++ = 0x80 | ((codepoint >> 6) & 0x3F);
-    *end++ = 0x80 | (codepoint & 0x3F);
+    *end++ = static_cast<char>(0xF0 | (codepoint >> 18));
+    *end++ = static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+    *end++ = static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+    *end++ = static_cast<char>(0x80 | (codepoint & 0x3F));
   }
 }
 
@@ -301,7 +304,7 @@ static bool has_extension(const char *filename, const char *extension) {
 }
 
 bool starts_with(const char *pre, const char *str) {
-  size_t lenpre = strlen(pre), lenstr = strlen(str);
+  size_t lenpre = std::strlen(pre), lenstr = std::strlen(str);
   return lenstr < lenpre ? false : strncmp(pre, str, lenpre) == 0;
 }
 
@@ -309,7 +312,7 @@ bool validate(const char *dirname) {
   size_t total_strings = 0;
   probable_bug = false;
   const char *extension = ".json";
-  size_t dirlen = strlen(dirname);
+  size_t dirlen = std::strlen(dirname);
   struct dirent **entry_list;
   int c = scandir(dirname, &entry_list, 0, alphasort);
   if (c < 0) {
@@ -324,7 +327,7 @@ bool validate(const char *dirname) {
   for (int i = 0; i < c; i++) {
     const char *name = entry_list[i]->d_name;
     if (has_extension(name, extension)) {
-      size_t filelen = strlen(name);
+      size_t filelen = std::strlen(name);
       fullpath = (char *)malloc(dirlen + filelen + 1 + 1);
       strcpy(fullpath, dirname);
       if (needsep) {
@@ -333,7 +336,8 @@ bool validate(const char *dirname) {
       } else {
         strcpy(fullpath + dirlen, name);
       }
-      auto [p, error] = simdjson::padded_string::load(fullpath);
+      simdjson::padded_string p;
+      auto error = simdjson::padded_string::load(fullpath).get(p);
       if (error) {
         std::cerr << "Could not load the file " << fullpath << std::endl;
         return EXIT_FAILURE;
@@ -348,7 +352,7 @@ bool validate(const char *dirname) {
       total_string_length = 0;
       empty_string = 0;
       simdjson::dom::parser parser;
-      auto [doc, err] = parser.parse(p);
+      auto err = parser.parse(p).error();
       bool isok = (err == simdjson::error_code::SUCCESS);
       free(big_buffer);
       if (good_string > 0) {
@@ -357,7 +361,7 @@ bool validate(const char *dirname) {
                "\taverage string length: %.1f \n",
                name, isok ? " is valid     " : " is not valid ", bad_string,
                good_string, empty_string,
-               (double)total_string_length / good_string);
+               static_cast<double>(total_string_length) / static_cast<double>(good_string));
       } else if (bad_string > 0) {
         printf("File %40s %s --- bad strings: %10zu  \n", name,
                isok ? " is valid     " : " is not valid ", bad_string);

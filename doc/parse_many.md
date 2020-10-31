@@ -1,7 +1,7 @@
 parse_many
 ==========
 
-An interface providing features to work with files or streams containing multiple JSON documents. 
+An interface providing features to work with files or streams containing multiple small JSON documents.
 As fast and convenient as possible.
 
 Contents
@@ -14,27 +14,27 @@ Contents
 - [API](#api)
 - [Use cases](#use-cases)
 
-Motivations
+Motivation
 -----------
 
 The main motivation for this piece of software is to achieve maximum speed and offer a
-better quality of life in parsing files containing multiple JSON documents.
+better quality of life in parsing files containing multiple small JSON documents.
 
-The JavaScript Object Notation (JSON) [RFC7159](https://tools.ietf.org/html/rfc7159) is a very handy
+The JavaScript Object Notation (JSON) [RFC7159](https://tools.ietf.org/html/rfc7159) is a handy
 serialization format.  However, when serializing a large sequence of
 values as an array, or a possibly indeterminate-length or never-
-ending sequence of values, JSON becomes difficult to work with.
+ending sequence of values, JSON may be inconvenient.
 
 Consider a sequence of one million values, each possibly one kilobyte
-when encoded -- roughly one gigabyte.  It is often desirable to process such a dataset incrementally 
+when encoded -- roughly one gigabyte.  It is often desirable to process such a dataset incrementally
 without having to first read all of it before beginning to produce results.
 
 Performance
 -----------
 
-Here is a chart comparing the speed of the different alternatives to parse a multiline JSON.
-The simdjson library provides a threaded and non-threaded parse_many() implementation.  As the
-figure below shows, if you can, use threads, but if you can't, it's still pretty fast!
+The following is a chart comparing the speed of the different alternatives to parse a multiline JSON.
+The simdjson library provides a threaded and non-threaded `parse_many()` implementation.  As the
+figure below shows, if you can, use threads, but if you cannot, the unthreaded mode is still fast!
 [![Chart.png](/doc/Multiline_JSON_Parse_Competition.png)](/doc/Multiline_JSON_Parse_Competition.png)
 
 How it works
@@ -71,7 +71,7 @@ allocate enough memory so that all the documents can fit. This value is what we 
 As of right now, we need to manually specify a value for this batch size, it has to be at least as
 big as the biggest document in your file, but not too big so that it submerges the cached memory.
 The bigger the batch size, the fewer we need to make allocations. We found that 1MB is somewhat a
-sweet spot for now.
+sweet spot.
 
 1. When the user calls `parse_many`, we return a `document_stream` which the user can iterate over
    to receive parsed documents.
@@ -97,6 +97,10 @@ of magnitude cheaper. Ain't that awesome!
 Thread support is only active if thread supported is detected in which case the macro
 SIMDJSON_THREADS_ENABLED is set. Otherwise the library runs in  single-thread mode.
 
+A `document_stream` instance uses at most two threads: there is a main thread and a worker thread.
+You should expect the main thread to be fully occupied while the worker thread is partially busy
+(e.g., 80% of the time).
+
 Support
 -------
 
@@ -105,7 +109,7 @@ format, we support any file that contains any amount of valid JSON document, **s
 or more character that is considered whitespace** by the JSON spec. Anything that is
  not whitespace will be parsed as a JSON document and could lead to failure.
 
-Whitespace Characters: 
+Whitespace Characters:
 - **Space**
 - **Linefeed**
 - **Carriage return**
@@ -133,16 +137,16 @@ From [jsonlines.org](http://jsonlines.org/examples/):
     ["Gilbert", "2013", 24, true]
     ["Alexa", "2013", 29, true]
     ["May", "2012B", 14, false]
-    ["Deloise", "2012A", 19, true] 
+    ["Deloise", "2012A", 19, true]
     ```
-    CSV seems so easy that many programmers have written code to generate it themselves, and almost every implementation is 
-    different. Handling broken CSV files is a common and frustrating task. CSV has no standard encoding, no standard column 
+    CSV seems so easy that many programmers have written code to generate it themselves, and almost every implementation is
+    different. Handling broken CSV files is a common and frustrating task. CSV has no standard encoding, no standard column
     separator and multiple character escaping standards. String is the only type supported for cell values, so some programs
      attempt to guess the correct types.
-    
+
     JSON Lines handles tabular data cleanly and without ambiguity. Cells may use the standard JSON types.
-    
-    The biggest missing piece is an import/export filter for popular spreadsheet programs so that non-programmers can use 
+
+    The biggest missing piece is an import/export filter for popular spreadsheet programs so that non-programmers can use
     this format.
 
 - **Easy Nested Data**
@@ -152,5 +156,5 @@ From [jsonlines.org](http://jsonlines.org/examples/):
     {"name": "May", "wins": []}
     {"name": "Deloise", "wins": [["three of a kind", "5♣"]]}
     ```
-    JSON Lines' biggest strength is in handling lots of similar nested data structures. One .jsonl file is easier to 
+    JSON Lines' biggest strength is in handling lots of similar nested data structures. One .jsonl file is easier to
     work with than a directory full of XML files.

@@ -4,8 +4,8 @@
 #include <cctype>
 #ifndef _MSC_VER
 #include <dirent.h>
-#include <unistd.h>
 #endif
+#include <unistd.h>
 #include <cinttypes>
 #include <initializer_list>
 
@@ -63,8 +63,8 @@ void print_usage(ostream& out) {
   out << "-s STAGE   - Stop after the given stage." << endl;
   out << "             -s stage1 - Stop after find_structural_bits." << endl;
   out << "             -s all    - Run all stages." << endl;
-  out << "-a ARCH    - Use the parser with the designated architecture (HASWELL, WESTMERE" << endl;
-  out << "             or ARM64). By default, detects best supported architecture." << endl;
+  out << "-a ARCH    - Use the parser with the designated architecture (HASWELL, WESTMERE," << endl;
+  out << "             PPC64 or ARM64). By default, detects best supported architecture." << endl;
 }
 
 void exit_usage(string message) {
@@ -75,7 +75,6 @@ void exit_usage(string message) {
 }
 
 struct option_struct {
-  architecture arch = architecture::UNSUPPORTED;
   bool stage1_only = false;
 
   int32_t iterations = 400;
@@ -84,48 +83,41 @@ struct option_struct {
   bool verbose = false;
 
   option_struct(int argc, char **argv) {
-    #ifndef _MSC_VER
-      int c;
+    int c;
 
-      while ((c = getopt(argc, argv, "vtn:i:a:s:")) != -1) {
-        switch (c) {
-        case 'n':
-          iterations = atoi(optarg);
-          break;
-        case 'i':
-          iteration_step = atoi(optarg);
-          break;
-        case 'v':
-          verbose = true;
-          break;
-        case 'a':
-          arch = parse_architecture(optarg);
-          if (arch == architecture::UNSUPPORTED) {
-            exit_usage(string("Unsupported option value -a ") + optarg + ": expected -a HASWELL, WESTMERE or ARM64");
-          }
-          break;
-        case 's':
-          if (!strcmp(optarg, "stage1")) {
-            stage1_only = true;
-          } else if (!strcmp(optarg, "all")) {
-            stage1_only = false;
+    while ((c = getopt(argc, argv, "vtn:i:a:s:")) != -1) {
+      switch (c) {
+      case 'n':
+        iterations = atoi(optarg);
+        break;
+      case 'i':
+        iteration_step = atoi(optarg);
+        break;
+      case 'v':
+        verbose = true;
+        break;
+      case 'a': {
+          auto impl = simdjson::available_implementations[optarg];
+          if(impl && impl->supported_by_runtime_system()) {
+            simdjson::active_implementation = impl;
           } else {
-            exit_usage(string("Unsupported option value -s ") + optarg + ": expected -s stage1 or all");
+            std::cerr << "implementation " << optarg << " not found or not supported " << std::endl;
           }
-          break;
-        default:
-          exit_error("Unexpected argument " + c);
         }
+        break;
+      case 's':
+        if (!strcmp(optarg, "stage1")) {
+          stage1_only = true;
+        } else if (!strcmp(optarg, "all")) {
+          stage1_only = false;
+        } else {
+          exit_usage(string("Unsupported option value -s ") + optarg + ": expected -s stage1 or all");
+        }
+        break;
+      default:
+        exit_error(string("Unexpected argument ") + std::string(1,static_cast<char>(c)));
       }
-    #else
-      int optind = 1;
-    #endif
-
-    // If architecture is not specified, pick the best supported architecture by default
-    if (arch == architecture::UNSUPPORTED) {
-      arch = find_best_supported_architecture();
     }
-    dom::parser::use_implementation(arch);
   }
 
   template<typename F>
@@ -154,25 +146,25 @@ struct feature_benchmarker {
   benchmarker struct23;
   benchmarker struct23_miss;
 
-  feature_benchmarker(const simdjson::implementation &parser, event_collector& collector) :
-    utf8               ("jsonexamples/generated/utf-8.json", parser, collector),
-    utf8_miss          ("jsonexamples/generated/utf-8-miss.json", parser, collector),
-    escape               ("jsonexamples/generated/escape.json", parser, collector),
-    escape_miss          ("jsonexamples/generated/escape-miss.json", parser, collector),
-    empty              ("jsonexamples/generated/0-structurals.json", parser, collector),
-    empty_miss         ("jsonexamples/generated/0-structurals-miss.json", parser, collector),
-    struct7           ("jsonexamples/generated/7-structurals.json", parser, collector),
-    struct7_miss      ("jsonexamples/generated/7-structurals-miss.json", parser, collector),
-    struct7_full       ("jsonexamples/generated/7-structurals-full.json", parser, collector),
-    struct15     ("jsonexamples/generated/15-structurals.json", parser, collector),
-    struct15_miss("jsonexamples/generated/15-structurals-miss.json", parser, collector),
-    struct23     ("jsonexamples/generated/23-structurals.json", parser, collector),
-    struct23_miss("jsonexamples/generated/23-structurals-miss.json", parser, collector)
+  feature_benchmarker(event_collector& collector) :
+    utf8               (SIMDJSON_BENCHMARK_DATA_DIR "generated/utf-8.json", collector),
+    utf8_miss          (SIMDJSON_BENCHMARK_DATA_DIR "generated/utf-8-miss.json", collector),
+    escape               (SIMDJSON_BENCHMARK_DATA_DIR "generated/escape.json", collector),
+    escape_miss          (SIMDJSON_BENCHMARK_DATA_DIR "generated/escape-miss.json", collector),
+    empty              (SIMDJSON_BENCHMARK_DATA_DIR "generated/0-structurals.json", collector),
+    empty_miss         (SIMDJSON_BENCHMARK_DATA_DIR "generated/0-structurals-miss.json", collector),
+    struct7           (SIMDJSON_BENCHMARK_DATA_DIR "generated/7-structurals.json", collector),
+    struct7_miss      (SIMDJSON_BENCHMARK_DATA_DIR "generated/7-structurals-miss.json", collector),
+    struct7_full       (SIMDJSON_BENCHMARK_DATA_DIR "generated/7-structurals-full.json", collector),
+    struct15     (SIMDJSON_BENCHMARK_DATA_DIR "generated/15-structurals.json", collector),
+    struct15_miss(SIMDJSON_BENCHMARK_DATA_DIR "generated/15-structurals-miss.json", collector),
+    struct23     (SIMDJSON_BENCHMARK_DATA_DIR "generated/23-structurals.json", collector),
+    struct23_miss(SIMDJSON_BENCHMARK_DATA_DIR "generated/23-structurals-miss.json", collector)
   {
 
   }
 
-  really_inline void run_iterations(size_t iterations, bool stage1_only=false) {
+  simdjson_really_inline void run_iterations(size_t iterations, bool stage1_only=false) {
     struct7.run_iterations(iterations, stage1_only);
     struct7_miss.run_iterations(iterations, stage1_only);
     struct7_full.run_iterations(iterations, stage1_only);
@@ -189,7 +181,7 @@ struct feature_benchmarker {
   }
 
   double cost_per_block(BenchmarkStage stage, const benchmarker& feature, size_t feature_blocks, const benchmarker& base) const {
-    return (feature[stage].best.elapsed_ns() - base[stage].best.elapsed_ns()) / feature_blocks;
+    return (feature[stage].best.elapsed_ns() - base[stage].best.elapsed_ns()) / double(feature_blocks);
   }
 
   // Whether we're recording cache miss and branch miss events
@@ -199,7 +191,7 @@ struct feature_benchmarker {
 
   // Base cost of any block (including empty ones)
   double base_cost(BenchmarkStage stage) const {
-    return (empty[stage].best.elapsed_ns() / empty.stats->blocks);
+    return (empty[stage].best.elapsed_ns() / double(empty.stats->blocks));
   }
 
   // Extra cost of a 1-7 structural block over an empty block
@@ -213,7 +205,7 @@ struct feature_benchmarker {
   // Rate of 1-7-structural misses per 8-structural flip
   double struct1_7_miss_rate(BenchmarkStage stage) const {
     if (!has_events()) { return 1; }
-    return double(struct7_miss[stage].best.branch_misses() - struct7[stage].best.branch_misses()) / struct7_miss.stats->blocks_with_1_structural_flipped;
+    return struct7_miss[stage].best.branch_misses() - struct7[stage].best.branch_misses() / double(struct7_miss.stats->blocks_with_1_structural_flipped);
   }
 
   // Extra cost of an 8-15 structural block over a 1-7 structural block
@@ -227,7 +219,7 @@ struct feature_benchmarker {
   // Rate of 8-15-structural misses per 8-structural flip
   double struct8_15_miss_rate(BenchmarkStage stage) const {
     if (!has_events()) { return 1; }
-    return double(struct15_miss[stage].best.branch_misses() - struct15[stage].best.branch_misses()) / struct15_miss.stats->blocks_with_8_structurals_flipped;
+    return double(struct15_miss[stage].best.branch_misses() - struct15[stage].best.branch_misses()) / double(struct15_miss.stats->blocks_with_8_structurals_flipped);
   }
 
   // Extra cost of a 16+-structural block over an 8-15 structural block (actual varies based on # of structurals!)
@@ -241,7 +233,7 @@ struct feature_benchmarker {
   // Rate of 16-structural misses per 16-structural flip
   double struct16_miss_rate(BenchmarkStage stage) const {
     if (!has_events()) { return 1; }
-    return double(struct23_miss[stage].best.branch_misses() - struct23[stage].best.branch_misses()) / struct23_miss.stats->blocks_with_16_structurals_flipped;
+    return double(struct23_miss[stage].best.branch_misses() - struct23[stage].best.branch_misses()) / double(struct23_miss.stats->blocks_with_16_structurals_flipped);
   }
 
   // Extra cost of having UTF-8 in a block
@@ -255,7 +247,7 @@ struct feature_benchmarker {
   // Rate of UTF-8 misses per UTF-8 flip
   double utf8_miss_rate(BenchmarkStage stage) const {
     if (!has_events()) { return 1; }
-    return double(utf8_miss[stage].best.branch_misses() - utf8[stage].best.branch_misses()) / utf8_miss.stats->blocks_with_utf8_flipped;
+    return double(utf8_miss[stage].best.branch_misses() - utf8[stage].best.branch_misses()) / double(utf8_miss.stats->blocks_with_utf8_flipped);
   }
 
   // Extra cost of having escapes in a block
@@ -269,39 +261,39 @@ struct feature_benchmarker {
   // Rate of escape misses per escape flip
   double escape_miss_rate(BenchmarkStage stage) const {
     if (!has_events()) { return 1; }
-    return double(escape_miss[stage].best.branch_misses() - escape[stage].best.branch_misses()) / escape_miss.stats->blocks_with_escapes_flipped;
+    return double(escape_miss[stage].best.branch_misses() - escape[stage].best.branch_misses()) / double(escape_miss.stats->blocks_with_escapes_flipped);
   }
 
   double calc_expected_feature_cost(BenchmarkStage stage, const benchmarker& file) const {
     // Expected base ns/block (empty)
     json_stats& stats = *file.stats;
-    double expected = base_cost(stage)       * stats.blocks;
-    expected +=       struct1_7_cost(stage)  * stats.blocks_with_1_structural;
-    expected +=       utf8_cost(stage)       * stats.blocks_with_utf8;
-    expected +=       escape_cost(stage)     * stats.blocks_with_escapes;
-    expected +=       struct8_15_cost(stage) * stats.blocks_with_8_structurals;
-    expected +=       struct16_cost(stage)   * stats.blocks_with_16_structurals;
-    return expected / stats.blocks;
+    double expected = base_cost(stage)       * double(stats.blocks);
+    expected +=       struct1_7_cost(stage)  * double(stats.blocks_with_1_structural);
+    expected +=       utf8_cost(stage)       * double(stats.blocks_with_utf8);
+    expected +=       escape_cost(stage)     * double(stats.blocks_with_escapes);
+    expected +=       struct8_15_cost(stage) * double(stats.blocks_with_8_structurals);
+    expected +=       struct16_cost(stage)   * double(stats.blocks_with_16_structurals);
+    return expected / double(stats.blocks);
   }
 
   double calc_expected_miss_cost(BenchmarkStage stage, const benchmarker& file) const {
     // Expected base ns/block (empty)
     json_stats& stats = *file.stats;
-    double expected = struct1_7_miss_cost(stage)  * stats.blocks_with_1_structural_flipped * struct1_7_miss_rate(stage);
-    expected +=       utf8_miss_cost(stage)       * stats.blocks_with_utf8_flipped * utf8_miss_rate(stage);
-    expected +=       escape_miss_cost(stage)     * stats.blocks_with_escapes_flipped * escape_miss_rate(stage);
-    expected +=       struct8_15_miss_cost(stage) * stats.blocks_with_8_structurals_flipped * struct8_15_miss_rate(stage);
-    expected +=       struct16_miss_cost(stage)   * stats.blocks_with_16_structurals_flipped * struct16_miss_rate(stage);
-    return expected / stats.blocks;
+    double expected = struct1_7_miss_cost(stage)  * double(stats.blocks_with_1_structural_flipped) * struct1_7_miss_rate(stage);
+    expected +=       utf8_miss_cost(stage)       * double(stats.blocks_with_utf8_flipped) * utf8_miss_rate(stage);
+    expected +=       escape_miss_cost(stage)     * double(stats.blocks_with_escapes_flipped) * escape_miss_rate(stage);
+    expected +=       struct8_15_miss_cost(stage) * double(stats.blocks_with_8_structurals_flipped) * struct8_15_miss_rate(stage);
+    expected +=       struct16_miss_cost(stage)   * double(stats.blocks_with_16_structurals_flipped) * struct16_miss_rate(stage);
+    return expected / double(stats.blocks);
   }
 
   double calc_expected_misses(BenchmarkStage stage, const benchmarker& file) const {
     json_stats& stats = *file.stats;
-    double expected = stats.blocks_with_1_structural_flipped   * struct1_7_miss_rate(stage);
-    expected +=       stats.blocks_with_utf8_flipped           * utf8_miss_rate(stage);
-    expected +=       stats.blocks_with_escapes_flipped        * escape_miss_rate(stage);
-    expected +=       stats.blocks_with_8_structurals_flipped  * struct8_15_miss_rate(stage);
-    expected +=       stats.blocks_with_16_structurals_flipped * struct16_miss_rate(stage);
+    double expected = double(stats.blocks_with_1_structural_flipped)   * struct1_7_miss_rate(stage);
+    expected +=       double(stats.blocks_with_utf8_flipped)           * utf8_miss_rate(stage);
+    expected +=       double(stats.blocks_with_escapes_flipped)        * escape_miss_rate(stage);
+    expected +=       double(stats.blocks_with_8_structurals_flipped)  * struct8_15_miss_rate(stage);
+    expected +=       double(stats.blocks_with_16_structurals_flipped) * struct16_miss_rate(stage);
     return expected;
   }
 
@@ -368,10 +360,10 @@ struct feature_benchmarker {
 };
 
 void print_file_effectiveness(BenchmarkStage stage, const char* filename, const benchmarker& results, const feature_benchmarker& features) {
-  double actual = results[stage].best.elapsed_ns() / results.stats->blocks;
+  double actual = results[stage].best.elapsed_ns() / double(results.stats->blocks);
   double calc = features.calc_expected(stage, results);
-  uint64_t actual_misses = results[stage].best.branch_misses();
-  uint64_t calc_misses = uint64_t(features.calc_expected_misses(stage, results));
+  double actual_misses = results[stage].best.branch_misses();
+  double calc_misses = features.calc_expected_misses(stage, results);
   double calc_miss_cost = features.calc_expected_miss_cost(stage, results);
   printf("        | %-8s ", benchmark_stage_name(stage));
   printf("| %-15s ",   filename);
@@ -380,10 +372,10 @@ void print_file_effectiveness(BenchmarkStage stage, const char* filename, const 
   printf("| %8.3g ",  calc);
   printf("| %8.3g ",  actual);
   printf("| %+8.3g ", actual - calc);
-  printf("| %13lu ",  calc_misses);
+  printf("| %13llu ", (long long unsigned)(calc_misses));
   if (features.has_events()) {
-    printf("| %13lu ",  actual_misses);
-    printf("| %+13ld ", int64_t(actual_misses - calc_misses));
+    printf("| %13llu ", (long long unsigned)(actual_misses));
+    printf("| %+13lld ", (long long int)(actual_misses - calc_misses));
     double miss_adjustment = calc_miss_cost * (double(int64_t(actual_misses - calc_misses)) / calc_misses);
     printf("|      %8.3g ", calc_miss_cost + miss_adjustment);
     printf("|      %+8.3g ", actual - (calc + miss_adjustment));
@@ -405,9 +397,9 @@ int main(int argc, char *argv[]) {
 
   // Set up benchmarkers by reading all files
   feature_benchmarker features(collector);
-  benchmarker gsoc_2018("jsonexamples/gsoc-2018.json", collector);
-  benchmarker twitter("jsonexamples/twitter.json", collector);
-  benchmarker random("jsonexamples/random.json", collector);
+  benchmarker gsoc_2018(SIMDJSON_BENCHMARK_DATA_DIR "gsoc-2018.json", collector);
+  benchmarker twitter(SIMDJSON_BENCHMARK_DATA_DIR "twitter.json", collector);
+  benchmarker random(SIMDJSON_BENCHMARK_DATA_DIR "random.json", collector);
 
   // Run the benchmarks
   progress_bar progress(options.iterations, 100);

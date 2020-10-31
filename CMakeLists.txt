@@ -1,82 +1,76 @@
 cmake_minimum_required(VERSION 3.9) # CMP0069 NEW
-include(GNUInstallDirs)
-
-message(STATUS "cmake version ${CMAKE_VERSION}")
-if (NOT CMAKE_BUILD_TYPE)
-  message(STATUS "No build type selected, default to Release")
-  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
-endif()
 
 project(simdjson
   DESCRIPTION "Parsing gigabytes of JSON per second"
   LANGUAGES CXX C
 )
 
-# LTO seems to create all sorts of fun problems. Let us
-# disable temporarily.
-#include(CheckIPOSupported)
-#check_ipo_supported(RESULT ltoresult)
-#if(ltoresult)
-#  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-#endif()
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_MACOSX_RPATH OFF)
-set(CMAKE_THREAD_PREFER_PTHREAD ON)
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-
 set(PROJECT_VERSION_MAJOR 0)
-set(PROJECT_VERSION_MINOR 3)
-set(PROJECT_VERSION_PATCH 1)
-set(SIMDJSON_LIB_VERSION "0.3.1" CACHE STRING "simdjson library version")
-set(SIMDJSON_LIB_SOVERSION "1" CACHE STRING "simdjson library soversion")
+set(PROJECT_VERSION_MINOR 6)
+set(PROJECT_VERSION_PATCH 0)
+set(SIMDJSON_SEMANTIC_VERSION "0.6.0" CACHE STRING "simdjson semantic version")
+set(SIMDJSON_LIB_VERSION "4.0.0" CACHE STRING "simdjson library version")
+set(SIMDJSON_LIB_SOVERSION "4" CACHE STRING "simdjson library soversion")
+set(SIMDJSON_GITHUB_REPOSITORY https://github.com/simdjson/simdjson)
 
-if(MSVC)
-  option(SIMDJSON_BUILD_STATIC "Build a static library" ON) # turning it on disables the production of a dynamic library
-  option(SIMDJSON_COMPETITION "Compile competitive benchmarks" OFF)
-  else()
-  option(SIMDJSON_BUILD_STATIC "Build a static library" OFF) # turning it on disables the production of a dynamic library
-  option(SIMDJSON_COMPETITION "Compile competitive benchmarks" ON)
-endif()
-option(SIMDJSON_GOOGLE_BENCHMARKS "compile the Google Benchmark benchmarks" OFF)
+include(GNUInstallDirs)
+include(cmake/simdjson-flags.cmake)
+include(cmake/simdjson-user-cmakecache.cmake)
 
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake")
 
-#
+
+if(SIMDJSON_JUST_LIBRARY)
+  message( STATUS "Building just the library, omitting all tests, tools and benchmarks." )
+else(SIMDJSON_JUST_LIBRARY)
+  # Setup tests
+  enable_testing()
+  add_subdirectory(jsonchecker)
+  add_subdirectory(jsonexamples)
+  add_library(test-data INTERFACE)
+  target_link_libraries(test-data INTERFACE jsonchecker-data jsonchecker-minefield-data jsonexamples-data)
+endif(SIMDJSON_JUST_LIBRARY)
+
 # Create the top level simdjson library (must be done at this level to use both src/ and include/
-# directories)
+# directories) and tools
 #
-add_subdirectory(windows)
 add_subdirectory(include)
 add_subdirectory(src)
+add_subdirectory(windows)
+if(NOT(SIMDJSON_JUST_LIBRARY))
+  add_subdirectory(dependencies) ## This needs to be before tools because of cxxopts
+  add_subdirectory(tools)  ## This needs to be before tests because of cxxopts
+  add_subdirectory(singleheader)
+endif()
+install(FILES singleheader/simdjson.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 #
 # Compile tools / tests / benchmarks
 #
-enable_testing()
-
-add_library(test-data INTERFACE)
-target_compile_definitions(test-data INTERFACE SIMDJSON_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/jsonchecker/")
-target_compile_definitions(test-data INTERFACE SIMDJSON_BENCHMARK_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/jsonexamples/")
-
-add_subdirectory(dependencies)
-add_subdirectory(tools)
-add_subdirectory(tests)
-add_subdirectory(examples)
-add_subdirectory(benchmark)
-
-# for fuzzing, read the comments in the fuzz/CMakeLists.txt file
-option(ENABLE_FUZZING "enable building the fuzzers" ON)
-if(ENABLE_FUZZING)
+if(NOT(SIMDJSON_JUST_LIBRARY))
+  add_subdirectory(tests)
+  add_subdirectory(examples)
+  add_subdirectory(benchmark)
   add_subdirectory(fuzz)
 endif()
 
-if(${CMAKE_C_COMPILER_ID} MATCHES "Intel") # icc / icpc
-  # prevent shared libraries from depending on Intel provided libraries
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -static-intel")
+#
+# Source files should be just ASCII
+#
+find_program(FIND find)
+find_program(FILE file)
+find_program(GREP grep)
+if((FIND) AND (FILE) AND (GREP))
+    add_test(
+      NAME "just_ascii"
+      COMMAND sh -c "${FIND}  include src windows tools singleheader tests examples benchmark -path benchmark/checkperf-reference -prune -name '*.h'  -o -name '*.cpp' -type f  -exec ${FILE} '{}' \; |${GREP} -v ASCII || exit 0  && exit 1"
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
 endif()
 
+
+#
+# CPack
+#
 set(CPACK_PACKAGE_VENDOR "Daniel Lemire")
 set(CPACK_PACKAGE_CONTACT "lemire@gmail.com")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Parsing gigabytes of JSON per second")
@@ -91,5 +85,3 @@ set(CPACK_RPM_PACKAGE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 set(CPACK_SOURCE_GENERATOR "TGZ;ZIP")
 
 include(CPack)
-
-

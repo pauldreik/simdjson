@@ -45,6 +45,16 @@ std::string rapid_stringme(char *json) {
   return buffer.GetString();
 }
 
+std::string simdjson_stringme(simdjson::padded_string & json) {
+  std::stringstream ss;
+  dom::parser parser;
+  dom::element doc;
+  auto error = parser.parse(json).get(doc);
+  if (error) { std::cerr << error << std::endl; abort(); }
+  ss << simdjson::minify(doc);
+  return ss.str();
+}
+
 
 int main(int argc, char *argv[]) {
   int c;
@@ -67,27 +77,33 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   const char *filename = argv[optind];
-  auto [p, error] = simdjson::padded_string::load(filename);
+  simdjson::padded_string p;
+  auto error = simdjson::padded_string::load(filename).get(p);
   if (error) {
     std::cerr << "Could not load the file " << filename << std::endl;
     return EXIT_FAILURE;
   }
+  // Gigabyte: https://en.wikipedia.org/wiki/Gigabyte
   if (verbose) {
     std::cout << "Input has ";
-    if (p.size() > 1024 * 1024)
-      std::cout << p.size() / (1024 * 1024) << " MB ";
-    else if (p.size() > 1024)
-      std::cout << p.size() / 1024 << " KB ";
+    if (p.size() > 1000 * 1000)
+      std::cout << p.size() / (1000 * 1000) << " MB ";
+    else if (p.size() > 1000)
+      std::cout << p.size() / 1000 << " KB ";
     else
       std::cout << p.size() << " B ";
     std::cout << std::endl;
   }
   char *buffer = simdjson::internal::allocate_padded_buffer(p.size() + 1);
+  if(buffer == nullptr) {
+    std::cerr << "Out of memory!" << std::endl;
+    abort();
+  }
   memcpy(buffer, p.data(), p.size());
   buffer[p.size()] = '\0';
 
   int repeat = 50;
-  int volume = p.size();
+  size_t volume = p.size();
   if (just_data) {
     printf(
         "name cycles_per_byte cycles_per_byte_err  gb_per_s gb_per_s_err \n");
@@ -102,18 +118,25 @@ int main(int argc, char *argv[]) {
   BEST_TIME_NOCHECK(
       "despacing with RapidJSON Insitu", rapid_stringme_insitu((char *)buffer),
       memcpy(buffer, p.data(), p.size()), repeat, volume, !just_data);
+
+  BEST_TIME_NOCHECK(
+      "despacing with std::minify", simdjson_stringme(p),, repeat, volume, !just_data);
+
+
   memcpy(buffer, p.data(), p.size());
   size_t outlength;
   uint8_t *cbuffer = (uint8_t *)buffer;
   for (auto imple : simdjson::available_implementations) {
-    BEST_TIME((std::string("simdjson->minify+")+imple->name()).c_str(), (imple->minify(cbuffer, p.size(), cbuffer, outlength) ? outlength : -1),
+    if(imple->supported_by_runtime_system()) {
+      BEST_TIME((std::string("simdjson->minify+")+imple->name()).c_str(), (imple->minify(cbuffer, p.size(), cbuffer, outlength) == simdjson::SUCCESS ? outlength : -1),
             outlength, memcpy(buffer, p.data(), p.size()), repeat, volume,
             !just_data);
+    }
   }
 
   printf("minisize = %zu, original size = %zu  (minified down to %.2f percent "
          "of original) \n",
-         outlength, p.size(), outlength * 100.0 / p.size());
+         outlength, p.size(), static_cast<double>(outlength) * 100.0 / static_cast<double>(p.size()));
 
   /***
    * Is it worth it to minify before parsing?
@@ -124,9 +147,12 @@ int main(int argc, char *argv[]) {
             !just_data);
 
   char *mini_buffer = simdjson::internal::allocate_padded_buffer(p.size() + 1);
+  if(mini_buffer == nullptr) {
+    std::cerr << "Out of memory" << std::endl;
+    abort();
+  }
   size_t minisize;
-  auto minierror = simdjson::active_implementation->minify((const uint8_t *)p.data(), p.size(),
-                                                           (uint8_t *)mini_buffer, minisize);
+  auto minierror = minify(p.data(), p.size(),mini_buffer, minisize);
   if (!minierror) { std::cerr << minierror << std::endl; exit(1); }
   mini_buffer[minisize] = '\0';
 
