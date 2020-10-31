@@ -12,7 +12,7 @@ jobs:
           set -eu
           scripts/remove_trailing_whitespace.sh
           git diff >whitespace.patch
-          if [ $(wc -c whitespace.patch) -ne 0 ] ; then
+          if [ $(wc -c <whitespace.patch) -ne 0 ] ; then
              echo "you have trailing whitespace, please download the artifact"
              echo "and apply with git apply <whitespace.patch or"
              echo "run scripts/remove_trailing_whitespace.sh locally."
