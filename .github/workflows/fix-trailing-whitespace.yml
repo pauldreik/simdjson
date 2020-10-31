@@ -3,7 +3,7 @@ name: Detect trailing whitespace
 on: [pull_request]
 
 jobs:
-  ubuntu-build:
+  whitespace:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
@@ -13,9 +13,11 @@ jobs:
           scripts/remove_trailing_whitespace.sh
           git diff >whitespace.patch
           if [ $(wc -c <whitespace.patch) -ne 0 ] ; then
-             echo "you have trailing whitespace, please download the artifact"
+             echo " !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! "
+             echo "You have trailing whitespace, please download the artifact"
              echo "and apply with git apply <whitespace.patch or"
              echo "run scripts/remove_trailing_whitespace.sh locally."
+             echo " !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! "
              exit 1
           else
              echo "no trailing whitespace found, good!"
